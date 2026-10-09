@@ -100,7 +100,7 @@ rule('esx.cert', 'Certificate: expired / untrusted / handshake failure', 'both',
      'TLS trust/validity issue. Check certificate expiry (vecs-cli / openssl) and the trust chain, and that time is correct.',
      search='vCenter certificate expired ssl handshake failed')
 rule('esx.auth', 'Auth: repeated authentication failures / lockout', 'esxi', 'low', ['auth'],
-     'auth', r'Authentication failure|Failed password|account .{0,30}locked|Lockout|Access denied for user|pam_.*(?:fail|deny)',
+     'auth', r'Authentication failure|Failed password|Rejected password for user|account .{0,30}locked|has been locked for \d+ seconds|Lockout|Access denied for user|pam_.*(?:fail|deny)',
      'Authentication failures on the host; check lockdown mode, AD join and brute-force attempts.',
      search='ESXi authentication failure account locked')
 
@@ -118,7 +118,7 @@ rule('vc.db', 'vCenter: database connectivity / capacity problem', 'vcenter', 'c
      'Embedded PostgreSQL unreachable or out of connections/space. Check vmware-vpostgres service, /storage/db and /storage/seat usage and max_connections.',
      search='vCenter database VCDB connection failure vpostgres')
 rule('vc.host_disc', 'vCenter: ESXi host disconnected / not responding', 'vcenter', 'high', ['host-connection', 'network'],
-     'host', r'Host .{0,80}(?:is not responding|disconnected|got disconnected)|HostNotResponding|Cannot (?:connect|contact) (?:to )?host|ESX unresponsive|HostCommunication.{0,40}(?:error|fail)|Failed to connect to (?:host|ESX)|host (?:is )?unreachable',
+     'host', r'Host .{0,80}(?:is not responding|disconnected|got disconnected)|missing heartbeats|state changed to NO_RESPONSE|No response has been received|The Connection was broken|HostNotResponding|Cannot (?:connect|contact) (?:to )?host|ESX unresponsive|HostCommunication.{0,40}(?:error|fail)|Failed to connect to (?:host|ESX)|host (?:is )?unreachable',
      'vCenter lost management connection to a host. Check the host-side hostd/vpxa, management network, DNS and port 443/902.',
      search='ESXi host disconnected from vCenter not responding')
 rule('vc.sso', 'SSO/STS: authentication or token failures', 'vcenter', 'high', ['auth', 'services', 'certificate'],
@@ -142,7 +142,7 @@ rule('vc.upg_sizing', 'vCenter upgrade: target size / storage too small (pre-che
      'The upgrade pre-check warned the target appliance disks are smaller than the data being imported. Redeploy the target with a larger deployment/storage size, or choose not to import events/tasks/performance data (Stage 1 option), then retry. If the warning was acknowledged and Stage 2 later hit disk-full, this is the root cause.',
      search='VCSA upgrade pre-check insufficient storage size SEAT data import', root_for=('vc.disk_full', 'vc.db'))
 rule('vc.service_down', 'vCenter: service failed to start / exited', 'vcenter', 'high', ['services'],
-     'service', r'service .{0,60}(?:failed to start|exited|not running|stopped unexpectedly|crashed)|vmon.{0,60}(?:fail|restart|unhealthy)|Failed to start .{0,40}service|Health check .{0,40}fail',
+     'service', r'service .{0,60}(?:failed to start|exited|not running|stopped unexpectedly|crashed)|An error occurred while starting service|Error executing start on service|install\.ciscommon\.service\.(?:failstart|notfound)|vmon.{0,60}(?:fail|restart|unhealthy)|Failed to start .{0,40}service|Health check .{0,40}fail',
      'A vCenter service is flapping or down. Run service-control --status --all and review the service-specific log.',
      search='vCenter service fails to start vmon', symptom=True)
 rule('vc.oom_kill', 'vCenter: OOM killer / low memory', 'vcenter', 'high', ['memory', 'crash'],
@@ -165,6 +165,65 @@ rule('vc.acl_legacy', 'Security advisory: vmdird ACL MODE Legacy', 'vcenter', 'l
      'acl mode', r'ACL MODE: Legacy',
      'Informational advisory reported by TDLog (VMSA-2020-0006 / CVE-2020-3952).',
      kb='78543')
+
+
+# ---------------- rules derived from resolved support cases (anonymised templates) ----------------
+rule('vc.ldaps', 'vCenter: AD over LDAPS identity source / certificate trust failure', 'vcenter', 'high', ['auth', 'certificate', 'services'],
+     'ldap', r"Failed to probe provider|Can't contact LDAP server|Server SSL certificate verification failed|SignatureException: Signature does not match|SHA1 Fingerprint",
+     'vCenter cannot validate the domain controller LDAPS certificate. Check the DC certificate chain (openssl s_client), that Root + intermediate CAs are trusted in VECS, that the cert is SHA-256 or better (SHA-1 is rejected on vSphere 8), and that the identity source uses the FQDN in the SAN. After a certificate change remove and re-add the identity source.',
+     search='vCenter LDAPS identity source certificate SHA-1 Signature does not match probe provider')
+rule('esx.heap_admission', 'ESXi: kernel heap admission failure (e.g. vmxnet3TxdHeap)', 'esxi', 'high', ['memory', 'network'],
+     'admission failure in path|dynamic heap|heap_align', r'Admission failure in path: host:system:net:heap|Could not allocate \d+ bytes for dynamic heap|Heap_Align\(.{0,60}failed',
+     'A vmkernel heap/memory pool had no room (0 KB available). VMs started on the host may come up without working network. Check host memory pressure and reservations, the vmxnet3 and driver versions, and whether the host needs a reboot; open a case with the vmkernel excerpt if it recurs.',
+     search='ESXi Admission failure in path vmxnet3TxdHeap Could not allocate dynamic heap')
+rule('esx.unmap', 'Storage: UNMAP (SCSI 0x42) command failures', 'esxi', 'high', ['storage', 'performance'],
+     'unmap|0x42', r'Cmd\(0x[0-9a-f]+\) 0x42,.{0,120}failed|UNMAP.{0,60}(?:fail|abort|timed out|busy)',
+     'Space-reclamation (UNMAP) commands are failing, often with device-busy from the array. Throttle or schedule VMFS-6 space reclamation off-peak, keep datastores below about 85% full, and engage the array vendor with the naa device list and time windows.',
+     search='ESXi UNMAP 0x42 device busy D:0x8 space reclamation')
+rule('vc.lcm_download', 'vCenter Lifecycle Manager: patch/VIB download or depot authentication failure', 'vcenter', 'high', ['upgrade', 'services'],
+     'download|verification service', r'Cannot download VIB|downloadMgr .{0,60}throws error: HTTP Error Code: 40[13]|File download error: .{0,200}failed, 0 byte|unable to authenticate with the VMware verification service',
+     'Lifecycle Manager cannot download metadata/VIBs (HTTP 403, expired token, legacy depot) or cannot authenticate to the verification service. Reconfigure the depot with a valid Broadcom token or tenant-specific depot; after a Lifecycle Manager DB reset re-create the SDDC online depot entry with its ownerdata.',
+     search='Lifecycle Manager Cannot download VIB HTTP 403 depot token ownerdata verification service')
+rule('vc.ha_agent_install', 'vSphere HA agent installation / configuration failure', 'both', 'high', ['ha', 'services'],
+     'cannot install|installer error|components required|applying ha', r'Cannot [Ii]nstall the vCenter Server [Aa]gent|Unknown Installer Error|missing .{0,40} components required|Applying HA VIBs?.{0,40}fail',
+     'The HA (FDM) agent cannot be installed or removed on a host, typically because a dependent VIB/component is missing or versions differ. Compare installed components with a healthy host, restore the missing component, then disable/enable HA or manually replace the agent.',
+     search='Cannot install the vCenter Server agent HA agent unknown installer error missing components')
+rule('esx.lockdown', 'ESXi lockdown mode blocking management/HA accounts', 'both', 'medium', ['ha', 'auth'],
+     'lockdown|configure vim account|no permission', r'breaks lockdown mode|Failed to configure VIM account|Cannot login user root@127\.0\.0\.1: no permission',
+     'Lockdown mode is rejecting vpxuser/root sessions needed for HA or monitoring agents. Add the required exception users or temporarily disable lockdown while configuring HA, then re-enable it.',
+     search='ESXi lockdown mode HA agent Access denied Failed to configure VIM account exception users')
+rule('vc.vpxd_cfg', 'vCenter: vpxd.cfg malformed or leftover configuration blocks', 'vcenter', 'high', ['services', 'ha'],
+     'vpxd.cfg|config file', r'(?:parse|parsing|FileFormatException|malformed).{0,80}vpxd\.cfg|vpxd\.cfg.{0,80}(?:parse|parsing|FileFormatException|duplicate|malformed)|Failed to (?:load|read|parse) config(?:uration)? file',
+     'vpxd cannot start because /etc/vmware-vpx/vpxd.cfg is malformed or holds leftovers (for example incomplete vCenter HA teardown or duplicate tags). Back it up, remove the offending block, and restart services.',
+     search='vpxd fails to start vpxd.cfg parse error incomplete vCenter HA removal')
+rule('vc.dvs_health', 'vDS health check: VLAN / MTU mismatch alerts', 'both', 'medium', ['network'],
+     'uplinkportvlan|healthcheck|health check|mtu check', r'UplinkPortVlanUntrunkedEvent|DistributedVirtualSwitchHealthCheckEvent|VLAN \d+ health check probe failed|MTU check failed for VLAN|flagged as unsupported|VLAN trunk verification failed',
+     'vDS health check cannot verify VLAN trunking or MTU, usually after VLANs were removed on the physical switches while portgroups still reference them. Usually cosmetic; remove unused VLAN portgroups and align MTU, or disable the health check.',
+     search='vSphere Distributed Switch health check VLAN trunked MTU supported status alert')
+rule('esx.vm_open_disk', 'VM cannot open disk / power on fails (lock or storage timeout)', 'esxi', 'high', ['storage', 'vm'],
+     'cannot open the disk|openfile', r"Cannot open the disk .{0,200}(?:snapshot disks it depends on|Connection timed out)|File system specific implementation of OpenFile\[file\] failed|Module Disk power on failed",
+     'A VM disk cannot be opened: stale file lock, broken snapshot chain or an unresponsive datastore (NFS/array). Find the lock owner (vmfsfilelockinfo / lsof), check array and NFS state (persistent locks after failover), then retry power on.',
+     search='Cannot power on virtual machine Cannot open the disk snapshot disks 110 Connection timed out lock')
+rule('guest.tools_install', 'Guest: VMware Tools installer failure (PVSCSI / VMCI / service stop)', 'both', 'medium', ['upgrade', 'network'],
+     'pvscsi|1603|installfinalize|inst_stopservice|inst_uninstallservice|winerror', r'VM_InstallPVSCSIDriver|MSI \(?1603|InstallFinalize.{0,20}Return value 3|Inst_StopService: Service could not be stopped|winerror code 1052|Inst_UninstallService: Service still present',
+     'The Windows VMware Tools installer failed and may have rolled back, leaving the VM without drivers/network. Check which driver/service step failed in vminst.log and setupapi.dev.log; use Custom Setup to exclude PVSCSI, repair the install manually, and avoid overlapping Windows updates/reboots.',
+     search='VMware Tools upgrade fails PVSCSI driver vminst.log winerror 1052 vmci', files=r'vminst|vmware-?tools|setupapi|guest')
+rule('vcf.sddc_init', 'SDDC Manager: initialisation / PSC authentication failure', 'both', 'high', ['auth', 'services'],
+     'idp metadata|psc init|initiate psc|authentication failed for host', r'Unable to retrieve iDP Metadata|PSC Initi\w*ation attempt .{0,20}failed|Failed to initiate PSC|Authentication failed for host',
+     'SDDC Manager cannot authenticate to a vCenter/PSC. The credential stored in SDDC Manager no longer matches (for example a vCenter root or service account password changed or expired outside SDDC Manager). Restore the matching credential, then restart SDDC Manager services.',
+     search='SDDC Manager stuck VMware Cloud Foundation is initializing Unable to retrieve iDP Metadata', files=r'sddc|vcf')
+rule('vc.backup_fail', 'vCenter file-based backup failure (scheduled / component)', 'vcenter', 'medium', ['backup'],
+     'backup|checksum', r'Error during component \w+ backup|Failed to get vCenter version|BackupManager encountered an exception|Checksum not generated at|Failed to push telemetry data for backup',
+     'The VCSA backup job fails (component script, telemetry/version check or retention handling). Compare manual vs scheduled and NFS vs SFTP/other protocols, review /var/log/vmware/applmgmt/backup.log, and check for a known-issue fix for the exact build.',
+     search='vCenter scheduled backup fails BackupManager encountered an exception Failed to get vCenter version')
+rule('esx.vr', 'vSphere Replication: no connection to VR server', 'esxi', 'medium', ['replication'],
+     'vr server', r'No connection to VR Server',
+     'Replicated VMs report no connection to the VR server. Check the replication appliance, host management access and credentials.',
+     search='No connection to VR Server for virtual machine vSphere Replication')
+rule('esx.datastore_full', 'Datastore full: VM cannot write / snapshots exhausted space', 'esxi', 'high', ['storage', 'disk-space', 'vm'],
+     'no more space|datastore|insufficient disk', r'There is no more space for virtual disk|Insufficient disk space on datastore|datastore .{0,60}(?:out of space|is full|100%)',
+     'A datastore ran out of free space (often from snapshot delta disks), stopping VMs. Free or extend the datastore first, then consolidate/delete snapshots; do not power on until there is headroom.',
+     search='VM stopped There is no more space for virtual disk snapshots datastore full')
 
 BY_ID = {r['id']: r for r in R}
 
@@ -195,18 +254,32 @@ _KW = {
  'vc.503': 'upstream|503',
  'vc.vpxd_crash': 'panic|backtrace|core dump|core dumped|signal sig|assert',
  'vc.db': 'connect|connections|clients|slots|odbc|database|fatal|panic|extend file',
- 'vc.host_disc': 'host|esx',
+ 'vc.host_disc': 'host|esx|heartbeat|no response|connection was broken|no_response',
  'vc.sso': 'sts|sso|vmdird|lookupsvc|identitymanager|credentials|authenticate|saml|token|authentication',
  'vc.ls_client': 'ls client',
  'vc.disk_full': 'space|diskfull|enospc|full',
  'vc.upg_fail': 'stage|firstboot|first boot|upgrade|import',
  'vc.upg_sizing': 'estimated|requirement|required|insufficient|not enough',
- 'vc.service_down': 'service|vmon|health check',
+ 'vc.service_down': 'service|vmon|health check|ciscommon',
  'vc.oom_kill': 'out of memory|oom|outofmemory',
- 'vc.replication': 'replic|vmdir|partner',
+ 'vc.replication': 'replic|vmdir|partner|[fail]',
  'vc.drs_ha': 'drs|ha',
  'vc.task_fail': 'task|poweron|failed to|insufficient|nocompatible',
  'vc.acl_legacy': 'acl mode',
+ 'vc.ldaps': 'ldap|probe provider|certificate verification|signature does not match|sha1',
+ 'esx.heap_admission': 'admission failure in path|dynamic heap|heap_align',
+ 'esx.unmap': 'unmap|0x42',
+ 'vc.lcm_download': 'download|verification service',
+ 'vc.ha_agent_install': 'cannot install|installer error|components required|applying ha',
+ 'esx.lockdown': 'lockdown|configure vim account|no permission',
+ 'vc.vpxd_cfg': 'vpxd.cfg|config file|configuration file',
+ 'vc.dvs_health': 'uplinkportvlan|healthcheck|health check|mtu check|flagged as unsupported|trunk verification',
+ 'esx.vm_open_disk': 'cannot open the disk|openfile|disk power on',
+ 'guest.tools_install': 'pvscsi|1603|installfinalize|inst_stopservice|inst_uninstallservice|winerror',
+ 'vcf.sddc_init': 'idp metadata|psc init|initiate psc|authentication failed for host|initilization|initialization',
+ 'vc.backup_fail': 'backup|checksum|telemetry',
+ 'esx.vr': 'vr server',
+ 'esx.datastore_full': 'no more space|datastore|insufficient disk',
 }
 for _r in R:
     _r['kws'] = tuple(_KW[_r['id']].split('|'))

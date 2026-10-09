@@ -319,7 +319,8 @@ class KbResearch(unittest.TestCase):
     def test_every_rule_has_library_entries(self):
         from lvx import kb
         from lvx.rules import R
-        covered = {r for e in kb._load()['entries'] for r in e['rules']}
+        from lvx import templates
+        covered = {r for e in kb._load()['entries'] for r in e['rules']} | {r for t in templates.all_templates() for r in t['expect_rules']}
         self.assertEqual([r['id'] for r in R if r['id'] not in covered], [])
 
     def test_none_is_stated_plainly(self):

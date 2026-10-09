@@ -45,6 +45,19 @@ resolution steps. If nothing in the library matches, the report says so plainly 
 - Add or override entries with your own file: `LVX_KB_FILE=/path/extra.json` (same schema; a broken file is ignored).
 - Regenerate the shipped library with `python tools/build_kb_library.py` after editing it.
 
+## Resolved-case templates
+
+`lvx/case_templates.json` holds 26 **anonymised templates** distilled from 31 resolved support-case reports: the symptom in generic wording,
+a **synthetic** log excerpt, the detections LogLens must raise, the cause and resolution the case documented, and the Broadcom KB links the case cited.
+When a finding matches a template, its resolution and KB links appear in the finding's "Broadcom KB research" block, labelled
+*from a resolved support case (anonymised)*. If the case documented no resolution or cited no KB, the template says so.
+
+- `python -m lvx templates list` / `show CT-13` / `build CT-13 OUT_DIR` (writes a synthetic bundle + `.tgz` you can upload to the UI).
+- Log lines are synthetic: `case` = wording taken from the case's own excerpt (anonymised), `typical` = written for the template. Templates marked `no-log`
+  have no bundle because the case contained no log evidence.
+- **No customer data**: no names, case numbers, real hostnames/IPs or emails. `tests/test_templates.py` enforces this (hash-only denylist in `tests/privacy_denylist.sha256`).
+- Regenerate with `python tools/build_case_templates.py`; run the accuracy check with `python tests/templates_accuracy.py`.
+
 ## Security notes
 Binds to `127.0.0.1` by default. For shared/cloud use set `LVX_TOKEN` (bearer token), `LVX_ROOTS` (folders
 the server may open) or `LVX_ALLOW_OPEN=0`, and put it behind HTTPS. Archives are unpacked to a temp dir

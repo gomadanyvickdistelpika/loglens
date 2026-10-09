@@ -8,7 +8,7 @@ import os
 import re
 
 _LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kb_library.json')
-MAX_SHOWN = 3
+MAX_SHOWN = 4
 _cache = None
 
 
@@ -54,6 +54,24 @@ def _entry_out(e, precision):
                 articles=[dict(id=a['id'].replace('legacy:', 'legacy '), title=a['title'], url=article_url(a['id'])) for a in e['articles']])
 
 
+def _template_entries(rule_id, text):
+    """Entries from anonymised resolved-case templates whose expected rule matches this finding."""
+    if not rule_id:
+        return []
+    from . import templates
+    out = []
+    for t in templates.all_templates():
+        if rule_id not in t['expect_rules']:
+            continue
+        if t.get('match') and not re.search(t['match'], text or '', re.I):
+            continue
+        out.append(dict(topic='Resolved-case template %s: %s' % (t['id'], t['title']), precision='case-template', cause=t.get('cause', ''),
+                        resolution=t.get('resolution', []), notes=t.get('notes', ''), basis='case',
+                        articles=[dict(id=k['id'].replace('legacy:', 'legacy '), title=k['title'], url=article_url(k['id'])) for k in t.get('kb', []) if k.get('role') != 'noise'],
+                        template=t['id'], evidence=t.get('evidence', '')))
+    return out
+
+
 def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
     """Return {'status': 'found'|'none', 'entries': [...], 'more': n, 'searched': phrase, 'message': str}."""
     lib = _load()
@@ -68,6 +86,7 @@ def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
     if kind == 'generic' or not rule_id:
         return dict(base, status='none', entries=[], more=0,
                     message='No Broadcom KB found: this message matches no known signature, so it was not researched. Use the search phrase manually.')
+    tmpl = _template_entries(rule_id, text)
     hit, general = [], []                     # (priority, entry) - higher priority first, library order otherwise
     for e in lib['entries']:
         if rule_id not in e['rules']:
@@ -76,9 +95,10 @@ def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
             general.append((e.get('priority', 0), _entry_out(e, 'general')))
         elif e['_rx'].search(text or ''):
             hit.append((e.get('priority', 0), _entry_out(e, 'match')))
-    ents = [x for _p, x in sorted(hit, key=lambda t: -t[0])] + [x for _p, x in sorted(general, key=lambda t: -t[0])]
+    ents = tmpl + [x for _p, x in sorted(hit, key=lambda t: -t[0])] + [x for _p, x in sorted(general, key=lambda t: -t[0])]
     if not ents:
         return dict(base, status='none', entries=[], more=0,
                     message='No Broadcom KB found in the LogLens KB library for this finding (researched %s).' % lib['researched'])
     return dict(base, status='found', entries=ents[:MAX_SHOWN], more=max(0, len(ents) - MAX_SHOWN),
-                message='Matched from the LogLens KB library (research snapshot %s, not a live search).' % lib['researched'])
+                message=('Matched from the LogLens KB library and anonymised resolved-case templates (research snapshot %s, not a live search).' if tmpl else
+                         'Matched from the LogLens KB library (research snapshot %s, not a live search).') % lib['researched'])

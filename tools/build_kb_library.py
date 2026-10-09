@@ -294,6 +294,34 @@ kb('Directory service schema/ACL on upgraded vCenter', ['vc.acl_legacy'], [A(785
    'VMSA-2020-0006 / CVE-2020-3952 affects vCenter 6.7 / PSC before 6.7 U3f only if upgraded from an earlier release line (6.0/6.5); KB 78543 determines whether an environment is affected. Separately, "ACL MODE: Legacy" appears in PatchRunner.log when a 7.0 to 7.0 U1 schema patch fails (legacy VMDIR schema, DFL 4) - fixed in 7.0 U1C.',
    ['Update to 6.7 U3f or later and use KB 78543 to check exposure.', '7.0 -> 7.0 U1 schema-update failure: resolved in 7.0 U1C.'])
 
+
+# ----------------------------------------------------------------------------- added from resolved-case research (2026-10-09)
+kb('UNMAP (SCSI 0x42) failures: device busy / array UNMAP limits', ['esx.unmap'],
+   [A(407579, 'ESXi logs report device busy (D:0x8) against unmap commands (0x42)'), A(420623, 'Performance issues on VMs caused by storage array UNMAP command limits.'),
+    A(446350, 'Dead Space Reclamation Issue on Pure Storage LUNs After VSS Backups'), A('legacy:77030', 'High VM Stun time during snapshot deletion or SVmotion failure on ESXi 6.7U2 or later')],
+   'Command 0x42 is UNMAP and D:0x8 is device busy: arrays cap UNMAP I/O and may reject it with busy (transient status, retried). Slowness can result when the array limit is hit.',
+   ['Occasional entries can be a temporary peak and ignored; if frequent, review the UNMAP pattern from the hosts and reduce the load on the array (KB 407579).', 'Engage the array vendor about UNMAP limits/handling (KB 420623).',
+    'VMFS-6 with array unmap granularity above 1 MB: set reclaim priority to none on all hosts sharing the volume and reclaim manually with esxcli storage vmfs unmap --volume-label=<ds> --reclaim-unit=200 (legacy KB 77030, 446350).'],
+   notes='Related PSOD articles have different causes: KB 396124 (ESXi 8.0.3, #PF in the Unmap module when a datastore is at 100%; no fix at the time of the search) and legacy KB 70607 (6.5/6.7, avoid heavy unmap during reboot/unmount). No KB found that ties 0x42 failures directly to a PSOD.')
+kb('Admission failure messages (closest related KB - not an exact match)', ['esx.heap_admission'], [A(425728, 'Addressing "Admission failure in path:" messages in ESXi')],
+   'ESXi could not allocate the memory a process requested; only a problem if seen constantly.', ['Restart the affected management agent; if it persists, enter maintenance mode and reboot the host.'],
+   notes='No Broadcom KB found for the exact vmxnet3TxdHeap / "Could not allocate ... dynamic heap" message; KB 425728 is the closest general article. A related KB (vmxnet3 slab admission failure after vMotion) ties it to hosts with many fully reserved VMs and stale vNIC entries - check the vmkernel log around power-on.')
+kb('VMware Tools upgrade fails installing the PVSCSI driver (Windows)', ['guest.tools_install'],
+   [A(390706, 'VMware Tools upgraded fail while installing PVSCSI driver'), A(316567, 'Removal of Windows Update published PVSCSI driver version 1.3.18.0')],
+   'The target PVSCSI driver is already present or Windows prefers a different package (for example a Windows-Update published oem inf), so the installer step fails and may roll back.',
+   ['Run the Tools upgrade with Custom Setup and exclude the PVSCSI driver; update the driver manually afterwards if needed (KB 390706).', 'If a Windows-Update PVSCSI 1.3.18.0 is installed, roll back to 1.3.17.0: find the package with pnputil -e, remove with pnputil -f -d oemN.inf, or use Device Manager Roll Back Driver (KB 316567).',
+    'Collect C:\\Windows\\inf\\setupapi.dev.log, setupapi.app.log and pnputil /enum-drivers output to confirm which package owns pvscsi.'], match=r'PVSCSI|1603|InstallFinalize')
+kb('VMware Tools installer rollback: overlapping Windows updates, VMCI or VGAuth lock', ['guest.tools_install'],
+   [A(318796, 'VMware Tools installer can fail during Windows updates or when security software locks files'), A(436332, 'VMware Tools installation fails due to a VMCI driver error on a Windows Server guest OS'),
+    A(454256, 'VMware Tools 13.1.0 auto-upgrade fails due to VGAuthService file lock')],
+   'Auto-upgrade after a reboot can collide with Windows updates, security software or a locked service/driver and roll back.',
+   ['Run the installer manually, choose Repair, then reboot (KB 318796); temporarily set the Tools upgrade policy to Manual during patching.', 'Tools 13.1.0 VGAuth lock: Stop-Service -Name "vgauthservice", rerun the upgrade, confirm the service runs again (KB 454256).',
+    'Check vminst.log for the exact failing step (e.g. winerror 1052 on the vmci service) and see KB 436332 for the VMCI case.'], match=r'vmci|1052|VGAuth|rollback')
+kb('VM cannot power on: lock / disk open timeout', ['esx.vm_open_disk'], [A(313027, 'Cannot power on a virtual machine: unable to locate / lock file (cannot-power-on-a-virtual-machine-locate)')],
+   basis='title')
+kb('Datastore full: VM stops with "no more space for virtual disk"', ['esx.datastore_full'],
+   [A(318352, 'Virtual machine stop running with error "There is no more space for virtual disk"'), A(318518, 'Storage vMotion and VM power on fails with error "No space left on device" on VMFS6 datastore')], basis='title')
+
 lib = dict(researched=RESEARCHED,
            source='Summaries of knowledge.broadcom.com search results gathered on %s (the article pages themselves could not be fetched from the research environment).' % RESEARCHED,
            entries=E)

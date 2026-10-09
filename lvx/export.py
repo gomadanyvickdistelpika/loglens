@@ -19,7 +19,7 @@ def _kb_md(r, indent='- '):
     L = [indent + '**Broadcom KB research** (%s)' % r['message']]
     for en in r['entries']:
         arts = '; '.join('[KB %s](%s) %s' % (a['id'], a['url'], a['title']) for a in en['articles'][:4])
-        L.append('  - **%s**%s: %s' % (en['topic'], ' _(related, matched by rule only)_' if en['precision'] == 'general' else '', arts))
+        L.append('  - **%s**%s: %s' % (en['topic'], (' _(related, matched by rule only)_' if en['precision'] == 'general' else ' _(from a resolved support case, anonymised)_' if en['precision'] == 'case-template' else ''), arts))
         if en.get('cause'):
             L.append('    - Cause: %s' % en['cause'])
         if en.get('resolution'):
@@ -42,7 +42,7 @@ def _kb_html(r):
         return '<div class="kb"><b>Broadcom KB research:</b> %s%s</div>' % (e(r['message']), ' Manual search phrase: <code>%s</code>' % e(r['searched']) if r.get('searched') else '')
     h = ['<div class="kb"><b>Broadcom KB research</b> <small>(%s)</small>' % e(r['message'])]
     for en in r['entries']:
-        h.append('<div><b>%s</b>%s: %s' % (e(en['topic']), ' <i>(related, matched by rule only)</i>' if en['precision'] == 'general' else '',
+        h.append('<div><b>%s</b>%s: %s' % (e(en['topic']), (' <i>(related, matched by rule only)</i>' if en['precision'] == 'general' else ' <i>(from a resolved support case, anonymised)</i>' if en['precision'] == 'case-template' else ''),
                                           '; '.join('<a href="%s">KB %s</a> %s' % (e(a['url']), e(a['id']), e(a['title'])) for a in en['articles'][:4])))
         if en.get('cause'):
             h.append('<br>Cause: %s' % e(en['cause']))

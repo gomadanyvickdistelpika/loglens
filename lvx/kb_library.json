@@ -1796,6 +1796,156 @@
    ],
    "notes": "",
    "basis": "summary"
+  },
+  {
+   "topic": "UNMAP (SCSI 0x42) failures: device busy / array UNMAP limits",
+   "priority": 0,
+   "rules": [
+    "esx.unmap"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "407579",
+     "title": "ESXi logs report device busy (D:0x8) against unmap commands (0x42)"
+    },
+    {
+     "id": "420623",
+     "title": "Performance issues on VMs caused by storage array UNMAP command limits."
+    },
+    {
+     "id": "446350",
+     "title": "Dead Space Reclamation Issue on Pure Storage LUNs After VSS Backups"
+    },
+    {
+     "id": "legacy:77030",
+     "title": "High VM Stun time during snapshot deletion or SVmotion failure on ESXi 6.7U2 or later"
+    }
+   ],
+   "cause": "Command 0x42 is UNMAP and D:0x8 is device busy: arrays cap UNMAP I/O and may reject it with busy (transient status, retried). Slowness can result when the array limit is hit.",
+   "resolution": [
+    "Occasional entries can be a temporary peak and ignored; if frequent, review the UNMAP pattern from the hosts and reduce the load on the array (KB 407579).",
+    "Engage the array vendor about UNMAP limits/handling (KB 420623).",
+    "VMFS-6 with array unmap granularity above 1 MB: set reclaim priority to none on all hosts sharing the volume and reclaim manually with esxcli storage vmfs unmap --volume-label=<ds> --reclaim-unit=200 (legacy KB 77030, 446350)."
+   ],
+   "notes": "Related PSOD articles have different causes: KB 396124 (ESXi 8.0.3, #PF in the Unmap module when a datastore is at 100%; no fix at the time of the search) and legacy KB 70607 (6.5/6.7, avoid heavy unmap during reboot/unmount). No KB found that ties 0x42 failures directly to a PSOD.",
+   "basis": "summary"
+  },
+  {
+   "topic": "Admission failure messages (closest related KB - not an exact match)",
+   "priority": 0,
+   "rules": [
+    "esx.heap_admission"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "425728",
+     "title": "Addressing \"Admission failure in path:\" messages in ESXi"
+    }
+   ],
+   "cause": "ESXi could not allocate the memory a process requested; only a problem if seen constantly.",
+   "resolution": [
+    "Restart the affected management agent; if it persists, enter maintenance mode and reboot the host."
+   ],
+   "notes": "No Broadcom KB found for the exact vmxnet3TxdHeap / \"Could not allocate ... dynamic heap\" message; KB 425728 is the closest general article. A related KB (vmxnet3 slab admission failure after vMotion) ties it to hosts with many fully reserved VMs and stale vNIC entries - check the vmkernel log around power-on.",
+   "basis": "summary"
+  },
+  {
+   "topic": "VMware Tools upgrade fails installing the PVSCSI driver (Windows)",
+   "priority": 0,
+   "rules": [
+    "guest.tools_install"
+   ],
+   "match": "PVSCSI|1603|InstallFinalize",
+   "articles": [
+    {
+     "id": "390706",
+     "title": "VMware Tools upgraded fail while installing PVSCSI driver"
+    },
+    {
+     "id": "316567",
+     "title": "Removal of Windows Update published PVSCSI driver version 1.3.18.0"
+    }
+   ],
+   "cause": "The target PVSCSI driver is already present or Windows prefers a different package (for example a Windows-Update published oem inf), so the installer step fails and may roll back.",
+   "resolution": [
+    "Run the Tools upgrade with Custom Setup and exclude the PVSCSI driver; update the driver manually afterwards if needed (KB 390706).",
+    "If a Windows-Update PVSCSI 1.3.18.0 is installed, roll back to 1.3.17.0: find the package with pnputil -e, remove with pnputil -f -d oemN.inf, or use Device Manager Roll Back Driver (KB 316567).",
+    "Collect C:\\Windows\\inf\\setupapi.dev.log, setupapi.app.log and pnputil /enum-drivers output to confirm which package owns pvscsi."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VMware Tools installer rollback: overlapping Windows updates, VMCI or VGAuth lock",
+   "priority": 0,
+   "rules": [
+    "guest.tools_install"
+   ],
+   "match": "vmci|1052|VGAuth|rollback",
+   "articles": [
+    {
+     "id": "318796",
+     "title": "VMware Tools installer can fail during Windows updates or when security software locks files"
+    },
+    {
+     "id": "436332",
+     "title": "VMware Tools installation fails due to a VMCI driver error on a Windows Server guest OS"
+    },
+    {
+     "id": "454256",
+     "title": "VMware Tools 13.1.0 auto-upgrade fails due to VGAuthService file lock"
+    }
+   ],
+   "cause": "Auto-upgrade after a reboot can collide with Windows updates, security software or a locked service/driver and roll back.",
+   "resolution": [
+    "Run the installer manually, choose Repair, then reboot (KB 318796); temporarily set the Tools upgrade policy to Manual during patching.",
+    "Tools 13.1.0 VGAuth lock: Stop-Service -Name \"vgauthservice\", rerun the upgrade, confirm the service runs again (KB 454256).",
+    "Check vminst.log for the exact failing step (e.g. winerror 1052 on the vmci service) and see KB 436332 for the VMCI case."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VM cannot power on: lock / disk open timeout",
+   "priority": 0,
+   "rules": [
+    "esx.vm_open_disk"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "313027",
+     "title": "Cannot power on a virtual machine: unable to locate / lock file (cannot-power-on-a-virtual-machine-locate)"
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "Datastore full: VM stops with \"no more space for virtual disk\"",
+   "priority": 0,
+   "rules": [
+    "esx.datastore_full"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "318352",
+     "title": "Virtual machine stop running with error \"There is no more space for virtual disk\""
+    },
+    {
+     "id": "318518",
+     "title": "Storage vMotion and VM power on fails with error \"No space left on device\" on VMFS6 datastore"
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
   }
  ]
 }

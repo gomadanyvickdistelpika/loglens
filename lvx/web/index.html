@@ -160,8 +160,8 @@ function kbBlock(r) {
   if (r.status === 'none') return '<div class="kbx none"><b>Broadcom KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
   let h = '<div class="kbx"><b>Broadcom KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
-    h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : '') + '<div>'
-      + en.articles.slice(0, 4).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + '</div>';
+    h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? ' <span class="badge hi">from a resolved support case (anonymised)</span>' : '') + '<div>'
+      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No Broadcom KB was cited in the case.</span>') + '</div>';
     if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
     h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
       : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';
