@@ -5,7 +5,7 @@ import re
 import time
 from collections import Counter, deque
 
-from . import reports
+from . import kb, reports
 from .bundle import open_text, looks_binary
 from .rules import R
 from .timeparse import parse_ts, fmt_ts
@@ -485,6 +485,18 @@ class Analyzer:
 
 
     @staticmethod
+    def _attach_kb(d):
+        if d['kind'] == 'rule':
+            text = ' '.join([d['title']] + [s['text'] for s in d['samples']] + [v['message'] for v in d['variants']])
+            r = kb.research(d['id'], text, d.get('search'))
+        elif d['kind'] == 'snapshot':
+            text = ' '.join([d['title']] + [s['text'] for s in d['samples']])
+            r = kb.research('vc.disk_full', text, d.get('search'))
+        else:
+            r = kb.research(None, '', d['title'][:100], kind='generic')
+        d['kb_research'] = r
+
+    @staticmethod
     def _link_symptoms(items):
         """A downstream symptom (503, service down) that starts shortly AFTER a stronger cause ranks just below it."""
         by_id = {r['id']: r for r in R}
@@ -542,6 +554,10 @@ class Analyzer:
                 rf['confidence'] = 'low' if rf['stale'] else ('high' if rf['score'] >= 65 else 'medium')
                 rep_items.append(rf)
         items.sort(key=lambda d: (-d['score'], d['_first']))
+        for d in items + advisories:
+            self._attach_kb(d)
+        for rf in rep_items:
+            rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
         for d in items:
             d.pop('_first', None)
         # timeline
@@ -564,7 +580,7 @@ class Analyzer:
                         after_h=round(self.after_s / 3600, 2)),
             stats=st, findings=items, advisories=advisories, report_findings=sorted(rep_items, key=lambda d: -d['score']),
             reports=report_out, timeline=dict(bucket_s=int(self.bsize), buckets=tl),
-            sequence=sequence, skipped=self.skipped[:50])
+            sequence=sequence, skipped=self.skipped[:50], kb_library=kb.library_info())
 
 
 def analyze(bundle, **kw):

@@ -33,6 +33,18 @@ One engine (`lvx/`, Python standard library only), three ways to run it:
 * **Chronic** patterns spread evenly across the window are demoted; always-on **advisories** are listed separately.
 * Ranking = rule severity + issue-topic match + keyword overlap + closeness to the incident time + volume.
 
+## Broadcom KB research
+
+Every finding carries a **Broadcom KB research** block: the matching knowledge-base articles (links), the documented cause and the
+resolution steps. If nothing in the library matches, the report says so plainly ("No Broadcom KB found ...") and gives a search phrase.
+
+- Source: `lvx/kb_library.json`, a dated **snapshot** of research on knowledge.broadcom.com (summaries of search results, not article text).
+  It is **not a live search**. Open each article and confirm it applies to your exact build before acting.
+- Entries can be narrowed by a regex on the log text so only relevant articles show; unmatched generic messages and report items
+  without a KB number are reported as "no KB found".
+- Add or override entries with your own file: `LVX_KB_FILE=/path/extra.json` (same schema; a broken file is ignored).
+- Regenerate the shipped library with `python tools/build_kb_library.py` after editing it.
+
 ## Security notes
 Binds to `127.0.0.1` by default. For shared/cloud use set `LVX_TOKEN` (bearer token), `LVX_ROOTS` (folders
 the server may open) or `LVX_ALLOW_OPEN=0`, and put it behind HTTPS. Archives are unpacked to a temp dir
@@ -45,6 +57,7 @@ Nothing is sent to any external service.
 across dir/zip/tgz/nested-archive formats; passes at >= 95%).
 
 ## Honest limits
+- KB research is a research snapshot (see above), not a live Broadcom search; resolutions are summaries and must be confirmed in the article.
 * Signature rules are my own generic patterns, not Broadcom's. KB numbers are shown only where they came from your
   sample reports (80867, 78543); other findings carry a KB *search phrase* instead of a guess.
 * Accuracy numbers come from synthetic bundles; validate on real, sanitised bundles and send me misses.

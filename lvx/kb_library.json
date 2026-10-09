@@ -1,0 +1,1801 @@
+{
+ "researched": "2026-10-09",
+ "source": "Summaries of knowledge.broadcom.com search results gathered on 2026-10-09 (the article pages themselves could not be fetched from the research environment).",
+ "entries": [
+  {
+   "topic": "PSOD in VMFS operations (#PF Exception 14, ESXi 8.0.1)",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "vmfs",
+   "articles": [
+    {
+     "id": "381540",
+     "title": "ESXi 8.0.1 Host Experiences Purple Screen of Death (PSOD) with Page Fault Exception During VMFS Operations"
+    }
+   ],
+   "cause": "Race condition in VMFS resource management under intensive I/O on VMFS-6 volumes.",
+   "resolution": [
+    "Update to ESXi 7.0 Update 3o or 8.0 Update 2 or later.",
+    "If you cannot patch yet, reduce concurrent I/O on the affected volumes."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD with nfnic driver in the backtrace",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "nfnic",
+   "articles": [
+    {
+     "id": "317954",
+     "title": "ESXi experiences PSOD (purple screen of death) due to nfnic driver"
+    }
+   ],
+   "cause": "Storage driver (nfnic) defect, seen on ESXi 6.7.",
+   "resolution": [
+    "Upgrade the nfnic driver to 4.0.0.24 (from the hardware vendor).",
+    "Workaround: put initiators in different zones."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD in the usbus world (USB passthrough)",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "usbus",
+   "articles": [
+    {
+     "id": "420938",
+     "title": "ESXi host is failing with a Purple Diagnostic Screen (PSOD) displaying \"PF Exception 14\" within the usbus world while utilizing USB passthrough"
+    }
+   ],
+   "cause": "A USB device failing or timing out during passthrough.",
+   "resolution": [
+    "Identify the faulty USB device (VM settings) and replace it."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD with NMI on HPE ProLiant Gen8",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "\\bNMI\\b",
+   "articles": [
+    {
+     "id": "317547",
+     "title": "ESXi host fails with intermittent NMI PSOD (purple screen of death) on HP ProLiant Gen8 servers"
+    }
+   ],
+   "cause": "Intel IOMMU interrupt remapper change in certain 5.5/6.0/6.5 builds; may also be a hardware problem.",
+   "resolution": [
+    "Move the high-performance PCIe card to a different slot, or re-enable the remapper: esxcli system settings kernel set --setting=iovDisableIR -v FALSE, then reboot.",
+    "Contact the hardware vendor if it persists."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD during PXE boot (boot.cfg module order)",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "bootstrap",
+   "articles": [
+    {
+     "id": "398530",
+     "title": "ESXi encounters a purple screen of death (PSOD) during PXE boot. #PF Exception 14 in world #####:bootstrap"
+    }
+   ],
+   "cause": "Modified boot.cfg with module order different from the official ISO.",
+   "resolution": [
+    "Make the modules= order in the PXE image boot.cfg match the official ESXi ISO."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD with UEFI secure boot and a wrong clock",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "secure ?boot",
+   "articles": [
+    {
+     "id": "382784",
+     "title": "ESXi PSOD (purple screen of death) when UEFI secure boot is enabled and system time is incorrect"
+    }
+   ],
+   "cause": "Wrong system time with secure boot enabled.",
+   "resolution": [
+    "Set the same, correct time in UEFI/BIOS and in ESXi, then re-enable secure boot."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD NUMASched_PageNum2PhysicalDomain / vMotionRecv_ReadCompletePages",
+   "priority": 0,
+   "rules": [
+    "esx.psod"
+   ],
+   "match": "NUMASched_PageNum2PhysicalDomain|vMotionRecv_ReadCompletePages",
+   "articles": [
+    {
+     "id": "318449",
+     "title": "ESXi 7.0 and 8.0 host fails with a purple diagnostic screen that includes \"NUMASched_PageNum2PhysicalDomain\" and \"vMotionRecv_ReadCompletePages\" in the backtrace"
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "Machine Check Exception (MCE) PSOD - hardware fault",
+   "priority": 0,
+   "rules": [
+    "esx.mce",
+    "esx.psod"
+   ],
+   "match": "machine check|\\bMCE\\b|uncorrectable|hardware error",
+   "articles": [
+    {
+     "id": "372284",
+     "title": "Host halts with a purple diagnostic screen (PSOD) referencing Machine Check Exception (MCE)"
+    },
+    {
+     "id": "367928",
+     "title": "Machine Check Error (MCE) output decoding after ESXi panic"
+    },
+    {
+     "id": "336323",
+     "title": "Hardware faults on ESXi hosts"
+    },
+    {
+     "id": "414451",
+     "title": "Machine Check Exception (MCE) causing PSOD on ESXi 8.x"
+    }
+   ],
+   "cause": "ESXi treats a critical/uncorrectable machine check as unrecoverable; Broadcom guidance is that an MCE that reaches the purple screen points to hardware, not software.",
+   "resolution": [
+    "Capture the purple-screen output, then reboot.",
+    "Pull the BMC (iLO/iDRAC/CIMC) System Event Log and look for uncorrectable memory or CPU bank errors; identify the failing DIMM/CPU.",
+    "Contact the server vendor with the MCE data and IPMI/SEL logs; confirm BIOS/firmware match the VMware Compatibility Guide.",
+    "A reboot only helps if the trigger was transient; a recurring MCE needs part replacement or firmware work."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "PSOD from a hardware memory error (ApeiPageRetire)",
+   "priority": 0,
+   "rules": [
+    "esx.mce",
+    "esx.psod"
+   ],
+   "match": "Apei|PageRetire",
+   "articles": [
+    {
+     "id": "441389",
+     "title": "ESXi Host Experiences PSOD - NMI IPI: Panic requested by another PCPU due to Hardware Memory Error (ApeiPageRetire)"
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "Permanent Device Loss / All Paths Down",
+   "priority": 0,
+   "rules": [
+    "esx.apd"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "legacy:2004684",
+     "title": "Permanent Device Loss (PDL) and All-Paths-Down (APD) on host"
+    },
+    {
+     "id": "413706",
+     "title": "vCenter is inaccessible and datastores have size of 0"
+    },
+    {
+     "id": "342615",
+     "title": "Restarting management agents in an All-Paths-Down condition in ESXi fails with the error: Not all VMFS volumes were updated; the error encountered was No connection"
+    }
+   ],
+   "cause": "Host lost all paths to a device. The fix belongs at the array / fabric / HBA layer; sense 0x5 0x25 0x0 signals PDL (ESXi stops retrying).",
+   "resolution": [
+    "Restore stable connectivity at the hardware level first (array, FC zoning/switch, cabling, HBA).",
+    "Then reboot each affected host to clear leftover references to the APD device.",
+    "Before rebooting you can try to free the device: list the worlds holding it open, force-kill VM processes, run a dead-path rescan. A core system process holding the volume cannot be stopped, so a reboot is the only option then."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "APD not triggered / recurring APD behind IBM SVC",
+   "priority": 0,
+   "rules": [
+    "esx.apd"
+   ],
+   "match": "SVC|IBM",
+   "articles": [
+    {
+     "id": "338053",
+     "title": "All Paths Down (APD) is not triggered for LUNs behind IBM SAN Volume Controller (SVC)"
+    }
+   ],
+   "cause": "APD condition not detected for LUNs behind IBM SVC.",
+   "resolution": [
+    "Set /Scsi/ExtendAPDCondition to 1 (off by default; added in ESXi 6.5 P03 and 6.7 U1), or apply the IBM APAR HU01839 fix."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Interpreting SCSI sense codes (H:/D:/P: and sense triplets)",
+   "priority": 0,
+   "rules": [
+    "esx.scsi_sense"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "337796",
+     "title": "Interpreting SCSI sense codes in VMware ESXi"
+    },
+    {
+     "id": "413628",
+     "title": "Frequent ScsiDeviceIO failed logs on vmkernel logs of ESXi"
+    }
+   ],
+   "cause": "H: = host status (0x1 lost connection to LUN, 0x5 reset, 0x8 HBA driver aborted I/O); D:0x2 = CHECK CONDITION; \"Valid sense data\" is sense key / ASC / ASCQ.",
+   "resolution": [
+    "Decode the triplet against the T10 SCSI standard; 0x4 0x44 0x0 is a hardware error (internal target failure) - involve the storage vendor.",
+    "0x5 0x20 0x0 (invalid command opcode) can be informational from the SAN, per Broadcom.",
+    "0x5 0x25 0x0 (logical unit not supported) means PDL."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Device latency \"performance has deteriorated\"",
+   "priority": 0,
+   "rules": [
+    "esx.latency"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "318927",
+     "title": "ESXi device latency with \"performance has deteriorated\" messages in ESXi host logs"
+    },
+    {
+     "id": "394192",
+     "title": "High VM I/O workload and IOPS latency validation on ESXi hosts"
+    },
+    {
+     "id": "392787",
+     "title": "The ESXi host experiencing latency and intermittent APDs on NFS datastores"
+    }
+   ],
+   "cause": "ESXi only reports the latency (DAVG in esxtop); typical causes are target changes, disk/media failure, device overload, failover, or scheduled backups/replication.",
+   "resolution": [
+    "Use esxtop (DAVG vs KAVG) to see whether the delay is on the device or in the host.",
+    "Check the longer the gap between \"deteriorated\" and \"improved\" entries, the larger the VM impact.",
+    "If sustained, check array logs and engage the storage vendor; if it lines up with scheduled jobs, reschedule that load."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Lost access to volume / VMFS heartbeat timeouts",
+   "priority": 0,
+   "rules": [
+    "esx.vmfs_lock",
+    "esx.apd"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "318897",
+     "title": "Understanding lost access to volume messages in ESXi"
+    },
+    {
+     "id": "326437",
+     "title": "ESXi host loses connectivity to a VMFS datastore"
+    },
+    {
+     "id": "396366",
+     "title": "Lost access to volumes correlated with FC driver aborts"
+    },
+    {
+     "id": "410368",
+     "title": "VM Unresponsive Due to Datastore Connectivity and I/O Stalls"
+    }
+   ],
+   "cause": "A host writes a VMFS heartbeat about every 3 s; if it does not complete within ~16 s the datastore is taken offline and \"Lost access to volume\" is logged. It returns when a heartbeat completes.",
+   "resolution": [
+    "Check hostd.log, vobd.log and vmkernel.log around the time of the event.",
+    "Verify path/fabric health: for FC confirm driver and firmware are supported; for iSCSI check MTU consistency and the network path.",
+    "Engage the storage/fabric vendor for I/O aborts or array-side faults; VMFS recovers automatically once heartbeats succeed."
+   ],
+   "notes": "Related KB results also describe ATS-heartbeat false miscompares fixed by setting /VMFS3/UseATSForHBOnVMFS5 to 0 on all hosts sharing the datastore (not on vSAN) - confirm in the article before applying.",
+   "basis": "summary"
+  },
+  {
+   "topic": "NFS datastore connectivity / mount problems",
+   "priority": 0,
+   "rules": [
+    "esx.nfs",
+    "esx.apd"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "323107",
+     "title": "Troubleshooting NFS datastore connectivity issues"
+    },
+    {
+     "id": "310920",
+     "title": "NFS Datastore Fails to Mount with error \"The NFS server denied the mount request\""
+    },
+    {
+     "id": "344470",
+     "title": "Remounting a disconnected NFS datastore from the ESXi host"
+    },
+    {
+     "id": "377606",
+     "title": "NFSv3 datastores fail to mount following reboot of ESXi 8.0 U2 hosts"
+    }
+   ],
+   "cause": "Network path, host firewall, export permissions or stale state after an APD.",
+   "resolution": [
+    "Check MTU on the NFS VMkernel port group and test with vmkping (-s for jumbo); confirm TCP 2049 with nc.",
+    "Check the host nfsClient firewall rule; check export permissions allow the host IP/subnet.",
+    "Stale after APD (\"name already exists\"): unmount, reboot affected hosts, remount. Same IP on a replacement NFS server also needs a host reboot.",
+    "Remove/re-add: esxcli storage nfs list / remove -v <name> / add; fallback esxcfg-nas -d if busy.",
+    "ESXi 8.0 U2 NFSv3 mount-after-reboot issue is resolved in 8.0 U3."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Uplink redundancy lost / vmnic link down",
+   "priority": 0,
+   "rules": [
+    "esx.nic_down"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "426494",
+     "title": "Network uplink redundancy lost due to vmnic# down"
+    },
+    {
+     "id": "410676",
+     "title": "ESXi host displays \"Uplink redundancy lost\" alert in vCenter due to CRC errors on the NIC"
+    },
+    {
+     "id": "413302",
+     "title": "ESXi host reports repeated vmnic linkstate down/up events for a physical uplink"
+    },
+    {
+     "id": "324496",
+     "title": "Setting link state up or down for a vmnic interface on ESXi"
+    }
+   ],
+   "cause": "vobd \"Failed criteria: 128\" = driver reports link down: unplugged cable, shut switchport (or loop protection such as Cisco EDPL), or if unintended a driver/firmware/SFP/cable/port fault.",
+   "resolution": [
+    "If flapping, check CRC errors: esxcli network nic stats get -n vmnicX; inspect SFP seating, optics, cable path and switch port counters.",
+    "Test stability: esxcli network nic down -n vmnicX then up; if still down, contact the hardware vendor.",
+    "Verify NIC driver and firmware against the VMware Compatibility Guide."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Intel X710 (i40en) NIC flapping",
+   "priority": 0,
+   "rules": [
+    "esx.nic_down",
+    "esx.nic_hang"
+   ],
+   "match": "i40en",
+   "articles": [
+    {
+     "id": "436585",
+     "title": "NIC Flapping and \"Lost Uplink Redundancy\" on ESXi nodes with Intel X710 (i40en)"
+    }
+   ],
+   "cause": "Driver/firmware interoperability conflict (cable swaps did not help).",
+   "resolution": [
+    "Verify i40en driver and NIC firmware against the HCL and align them."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "qedentv (QLogic/Marvell) NIC resets / redundancy lost",
+   "priority": 0,
+   "rules": [
+    "esx.nic_down",
+    "esx.nic_hang"
+   ],
+   "match": "qedentv",
+   "articles": [
+    {
+     "id": "443561",
+     "title": "vCenter Server and ESXi hosts report \"Network redundancy lost\" on adapters using the qedentv driver"
+    }
+   ],
+   "cause": "NIC firmware resets (uplink-reset and firmware-dump entries in vmkernel.log).",
+   "resolution": [
+    "Align driver and firmware with the latest certified releases and engage the hardware vendor.",
+    "Workaround: set en_periodic_stats=0 on the qedentv module and reboot."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "bnxtnet (Broadcom NIC) TX timeout / PSOD",
+   "priority": 0,
+   "rules": [
+    "esx.nic_hang",
+    "esx.nic_down",
+    "esx.psod"
+   ],
+   "match": "bnxtnet",
+   "articles": [
+    {
+     "id": "429581",
+     "title": "vmnic flaps and Tx Timeout observed on Broadcom bnxtnet driver."
+    },
+    {
+     "id": "427648",
+     "title": "ESXi Purple Screen of Death (PSOD)/network connectivity loss on Broadcom NICs due to bnxtnet driver TX timeout"
+    }
+   ],
+   "cause": "bnxtnet 230.0.136.0 TX-timeout defect; bnxtnet older than 234.x with newer firmware can PSOD.",
+   "resolution": [
+    "Upgrade the bnxtnet driver and firmware together to a compatible supported pair.",
+    "Check versions: esxcli software vib list | grep bnxtnet; esxcli network nic get -n vmnicX."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Intel ixgben TX hang / link down",
+   "priority": 0,
+   "rules": [
+    "esx.nic_hang",
+    "esx.nic_down"
+   ],
+   "match": "ixgben",
+   "articles": [
+    {
+     "id": "407843",
+     "title": "WARNING: ixgben: ixgben_CheckTxHang: TX hang detected on TX queue ESXi 8.0"
+    },
+    {
+     "id": "411106",
+     "title": "Intel NIC occasionally experiences link down issues after upgrading ixgben driver to version 1.19.3.0 or 1.20.2.0"
+    }
+   ],
+   "cause": "TX hang is a NIC hardware condition the driver can only work around with a reset; ixgben 1.19.3.0 / 1.20.2.0 were linked to TX hangs and link-downs.",
+   "resolution": [
+    "Upgrade to ixgben 1.22.1.0.",
+    "For persistent cases work with the driver/firmware vendor and verify against the VMware Compatibility Guide."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "\"Queue 0 of device vmnicX stuck, resetting the device\"",
+   "priority": 0,
+   "rules": [
+    "esx.nic_hang"
+   ],
+   "match": "stuck, resetting",
+   "articles": [
+    {
+     "id": "387420",
+     "title": "ESXi vmnic link state flapping with the error - \"Queue 0 of device vmnicX stuck, resetting the device\""
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "Restarting ESXi management agents",
+   "priority": 0,
+   "rules": [
+    "esx.hostd",
+    "esx.vpxa",
+    "vc.host_disc"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "320280",
+     "title": "Restarting Management Agents in ESXi"
+    },
+    {
+     "id": "344682",
+     "title": "ESXi host not responding or disconnected - VMware vSphere"
+    }
+   ],
+   "cause": "Standard first action when hostd/vpxa are hung - but check for a storage or third-party cause first or the hang returns.",
+   "resolution": [
+    "Restart via the Host Client (Manage > Services) or SSH: /etc/init.d/hostd restart then /etc/init.d/vpxa restart; wait 1-2 minutes, confirm the host returns to Connected.",
+    "Do not use services.sh restart / the DCUI option on hosts with shared graphics (vGPU/vDGA/vSGA).",
+    "Before restarting check vSAN (esxcli vsan cluster get), LACP status and NSX VIBs.",
+    "If SSH is unavailable or services keep hanging, cold reboot via iLO/iDRAC (avoid force reboot on vSAN hosts if a graceful shutdown is possible)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "hostd/vpxd \"Panic: Memory exceeds hard limit\"",
+   "priority": 0,
+   "rules": [
+    "esx.hostd",
+    "esx.oom",
+    "vc.vpxd_crash",
+    "vc.oom_kill"
+   ],
+   "match": "hard limit|Memory exceeds|Vigor",
+   "articles": [
+    {
+     "id": "318440",
+     "title": "ESXi host goes not responding in vCenter and hostd crashes with error \"Panic: Memory exceeds hard limit\""
+    },
+    {
+     "id": "318013",
+     "title": "ESXi 7.0 host goes not responding in vCenter and hostd.log reports \"SetVigorNotificationTime: Not connected\""
+    },
+    {
+     "id": "379179",
+     "title": "vpxd Crashes with a \"Panic: Memory exceeds hard limit.\""
+    },
+    {
+     "id": "369160",
+     "title": "VPXD service crashes unexpectedly - panic: memory exceeds hard limit"
+    }
+   ],
+   "cause": "ESXi 6.5/6.7: failed hash check on the VMware Tools ISO leaks memory (fixed in 6.5 P05 / 6.7 P02). ESXi 7.0: race between VM power-off and Vigor callbacks. vpxd: monitoring/backup tools create ContainerViews/filters and never destroy them.",
+   "resolution": [
+    "ESXi 6.5/6.7: patch to 6.5 P05 / 6.7 P02, or replace /productLocker/vmtools/ with a copy from a healthy host on the same build (verify checksums) and restart management agents.",
+    "ESXi 7.0: restarting hostd clears it temporarily but high CPU returns - check the article for the fixed build.",
+    "vCenter: increase vpxd heap as a workaround and find/stop the tool leaking sessions/views (e.g. a vROps NSX-vSphere adapter, which has no permanent fix)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "hostd \"Too many open files\"",
+   "priority": 0,
+   "rules": [
+    "esx.hostd"
+   ],
+   "match": "Too many open files",
+   "articles": [
+    {
+     "id": "414769",
+     "title": "ESXi host was not responding as \"Too many open files\" with hostd"
+    }
+   ],
+   "cause": "A backup or vCenter task holding many VMDK handles.",
+   "resolution": [
+    "Restart management agents to restore access, and find/stop the task holding the files."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "hostd hung after storage outage / FCoE timeouts",
+   "priority": 0,
+   "rules": [
+    "esx.hostd",
+    "esx.vpxa"
+   ],
+   "match": "FCoE|APD|storage|Lost access",
+   "articles": [
+    {
+     "id": "434836",
+     "title": "ESXi Host Hangs and Disconnects from vCenter Due to FCoE Storage Timeouts"
+    },
+    {
+     "id": "391818",
+     "title": "ESXi host is not responding while VMs are running following a recovery from a storage outage"
+    }
+   ],
+   "cause": "Severe storage latency/connectivity loss blocks hostd threads indefinitely.",
+   "resolution": [
+    "Fix the storage path first, then restart the management agents."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Host \"Not Responding\" in vCenter - heartbeat / vpxa binding",
+   "priority": 0,
+   "rules": [
+    "esx.vpxa",
+    "vc.host_disc"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "318647",
+     "title": "ESXi host disconnects intermittently from vCenter Server"
+    },
+    {
+     "id": "399108",
+     "title": "ESXi hosts intermittently show as \"Not Responding\" in vCenter Server due to vpxa heartbeat binding errors"
+    },
+    {
+     "id": "414524",
+     "title": "ESXi Hosts Entering \"Not Responding\" State Every 60 Seconds Due to Incorrect UDP Port Configuration in vpxd.cfg"
+    },
+    {
+     "id": "306918",
+     "title": "ESXi host disconnects from vCenter Server with the error: Agent can't send heartbeats because socket address structure initialization is failing"
+    }
+   ],
+   "cause": "vCenter expects a UDP 902 heartbeat from each host (about every 10 s, 60 s window). Causes: stale management IP in the vCenter DB (vpxa bind Error 99), wrong VirtualCenterManagedIP, lost UDP 902 (firewall/ACL), wrong heartbeat port in vpxd.cfg (120 instead of 902), switch reboot, DNS failure.",
+   "resolution": [
+    "Wrong IP in VCDB: stop vpxd, correct the host entry in the database, start vpxd (use Broadcom guidance/support).",
+    "Trace heartbeats: pktcap-uw on the host and tcpdump on vCenter to see where UDP 902 stops; check firewalls/ACLs.",
+    "Check udp-port in vpxd.cfg is 902 (fix is on the vCenter side).",
+    "Verify the host can resolve the vCenter name (getaddrinfo errors in vpxa logs).",
+    "Last resort: remove the host from inventory and re-add it."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vSphere HA stuck in \"Election\" / HA agent unreachable",
+   "priority": 0,
+   "rules": [
+    "esx.fdm",
+    "vc.drs_ha"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "334269",
+     "title": "vSphere HA Configuration stuck in \"Election\" state, fails with \"HA Agent Unreachable\" or \"Operation Timed out\" in vCenter Server"
+    },
+    {
+     "id": "345414",
+     "title": "HA configuration is stuck at the \"Election\" state and doesn't proceed further for a set of hosts."
+    },
+    {
+     "id": "438412",
+     "title": "vSphere HA configuration fails with host state stuck in Election"
+    },
+    {
+     "id": "324992",
+     "title": "Determining if your VMware vSphere HA cluster has experienced a host failure"
+    }
+   ],
+   "cause": "Causes reported: MTU mismatch between VMkernel adapter and vSwitch; changed host certificate/thumbprint not refreshed in vCenter; a staged patch/pending reboot blocking FDM agent replacement; an unresponsive host; missing HA network path on vSAN.",
+   "resolution": [
+    "Check /var/log/fdm.log on the host and the master for election errors; an isolated host elects itself master and pings isolation addresses.",
+    "MTU: match switch MTU to the VMkernel adapter, validate with jumbo vmkping, then Reconfigure for vSphere HA.",
+    "Thumbprint: disconnect and reconnect the affected hosts (a reboot or service restart does not refresh it).",
+    "Pending reboot: reboot affected hosts, exit maintenance mode, re-enable HA.",
+    "Fix any \"Not Responding\" host first; confirm DNS and NTP; Reconfigure HA; toggling HA off/on is the last resort."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "\"Cannot find vSphere HA master agent\" after vCenter upgrade / revert",
+   "priority": 0,
+   "rules": [
+    "esx.fdm",
+    "vc.drs_ha"
+   ],
+   "match": "master",
+   "articles": [
+    {
+     "id": "444836",
+     "title": "Error: \"Cannot find vSphere HA master agent\" and Looping HA Configuration Tasks After vCenter Server Upgrade"
+    },
+    {
+     "id": "449121",
+     "title": "\"vCenter Server is unable to find a master vSphere HA agent\" for cluster after vCenter upgrade or snapshot revert"
+    },
+    {
+     "id": "434999",
+     "title": "After vCenter 8.0 U3i Patch: \"Unable to find a master vSphere HA agent in cluster\""
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "vSphere HA agent configuration errors (VIB / image-based clusters)",
+   "priority": 0,
+   "rules": [
+    "vc.drs_ha"
+   ],
+   "match": "VIB|image spec|Applying HA|configuration of the vSphere HA agent",
+   "articles": [
+    {
+     "id": "324583",
+     "title": "Cannot complete the configuration of the vSphere HA agent on the host. \"Applying HA VIB's on the cluster encountered a failure\""
+    },
+    {
+     "id": "384913",
+     "title": "\"Cannot complete the configuration of the vSphere HA agent on the host. Setting desired image spec for cluster failed\""
+    },
+    {
+     "id": "318765",
+     "title": "Enabling vSphere HA might fail or never complete on hosts with ESXi 7.0u2c/u2d and 7.0u3/u3a"
+    },
+    {
+     "id": "422190",
+     "title": "HA configuration fails after vCenter upgrade"
+    }
+   ],
+   "cause": "Variants: vsphere-fdm listed as a Component instead of a Solution in a vLCM image; Hardware Support Manager not configured; slow datastore enumeration hitting vpxd 15-min limit; LUN not presented to every host; duplicate i40en/i40enu VIBs (ESXi 7.0 U2c-U3a); failing boot disk.",
+   "resolution": [
+    "Image-based cluster: export the cluster image as JSON, remove the FDM component and reimport (no reboot needed).",
+    "Configure the Hardware Support Manager or remove the firmware/driver add-on, then re-run compliance.",
+    "Timeouts: set HA advanced option das.remediateHATaskTimeoutSecs=1800; check time esxcli storage filesystem list.",
+    "ESXi 7.0 U2c-U3a: upgrade to 7.0 U3c or remove the obsolete i40enu VIB (HA disabled, maintenance mode)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vSAN disk group unhealthy / log congestion (DDH)",
+   "priority": 0,
+   "rules": [
+    "esx.vsan"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "418349",
+     "title": "Virtual machines in the vSAN cluster are reporting as invalid - log congestion reported on vSAN diskgroup"
+    },
+    {
+     "id": "318127",
+     "title": "vSAN IO operations buildup leading to LogCongestion"
+    },
+    {
+     "id": "438445",
+     "title": "vSAN Disk Group shows as unhealthy and cache disk shows as evacuated"
+    },
+    {
+     "id": "326878",
+     "title": "Dying Disk Handling (DDH) in vSAN"
+    },
+    {
+     "id": "318125",
+     "title": "vSAN nodes experience LSOM Memory congestion due to high \"Number of elements in commit tables\""
+    }
+   ],
+   "cause": "Dying Disk Handling marks a disk group unhealthy on sustained high latency or maximum log congestion and starts evacuating it.",
+   "resolution": [
+    "Log-congested disk group: remove it from the vSAN cluster and add it back; or maintenance mode (Ensure Accessibility), reboot, rebuild; if it stays unhealthy treat as hardware failure and replace.",
+    "If removal hangs because DDH is also unmounting the disk, reboot the host, then remove it.",
+    "LSOM memory congestion (high commit-table counts): unmount/remount each affected disk group host by host, highest counts first (review scrubber settings in the KB).",
+    "Check inaccessible swap objects before assuming the disk is the only problem; review vobd and vsandevicemonitord logs."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vSAN ramdisk \"vsantraces\" full",
+   "priority": 0,
+   "rules": [
+    "esx.ramdisk"
+   ],
+   "match": "vsantraces",
+   "articles": [
+    {
+     "id": "326990",
+     "title": "vSAN -- Error: The ramdisk 'vsantraces' is full on ESXi"
+    }
+   ],
+   "cause": "No persistent scratch location: traces exhaust the 300 MB ramdisk.",
+   "resolution": [
+    "Check esxcli system visorfs ramdisk list.",
+    "Limit trace size or redirect traces to a datastore."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "ESXi upgrade/patch \"No space left on device\" (stagebootbank / locker)",
+   "priority": 0,
+   "rules": [
+    "esx.ramdisk"
+   ],
+   "match": "upgrad|stagebootbank|esxupdate|bootloader|locker",
+   "articles": [
+    {
+     "id": "318663",
+     "title": "No space left on device while upgrading ESXi with esxcli"
+    },
+    {
+     "id": "322322",
+     "title": "Error 28: No space on device, While upgrading ESXi host"
+    },
+    {
+     "id": "313531",
+     "title": "ESXi upgrade failure due to insufficient memory available to create ramdisk stagebootbank"
+    },
+    {
+     "id": "373343",
+     "title": "An error occurred during host configuration: /usr/sbin/esxupdate returned with exit status: 15"
+    }
+   ],
+   "cause": "Staging ramdisk or /locker out of space during an ESXi update.",
+   "resolution": [
+    "Free space in the staging ramdisk / locker, put the host in maintenance mode and retry (see the article for your update method)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "NTP / time synchronisation (host and vCenter)",
+   "priority": 0,
+   "rules": [
+    "esx.ntp"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "312204",
+     "title": "Troubleshooting NTP on ESX and the ESXi 7.x / 8.x."
+    },
+    {
+     "id": "384769",
+     "title": "Unable to add ESXi host to vCenter with error: \"Unable to push signed certificate to host\""
+    },
+    {
+     "id": "321371",
+     "title": "Firstboot fails when upgrading vCenter Server Appliance due to time synchronization issue"
+    }
+   ],
+   "cause": "A wrong clock makes vCenter-pushed certificates look \"not yet valid\" and breaks certificate/SSO/AD operations and upgrade firstboot.",
+   "resolution": [
+    "Compare the host clock (date) with network time; use the same NTP servers on all hosts and vCenter (Configure > System > Time Configuration); a manual set first can help.",
+    "Allow 1-15 minutes to converge; confirm the NTP service is running and UDP 123/DNS/firewall are open.",
+    "NTPv3 source vs ESXi NTPv4 default: set the version in /etc/ntp.conf.",
+    "For upgrade firstboot failures ensure the target ESXi host is NTP-synchronised, then retry."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vCenter / AD join failures from clock skew",
+   "priority": 0,
+   "rules": [
+    "esx.ntp",
+    "vc.sso"
+   ],
+   "match": "Active Directory|\\bAD\\b|skew|domain",
+   "articles": [
+    {
+     "id": "373032",
+     "title": "vCenter Appliance fails to join AD domain due to clock skew"
+    },
+    {
+     "id": "430310",
+     "title": "vCenter disconnects from Active Directory following a reboot due to host time skew"
+    },
+    {
+     "id": "336021",
+     "title": "Detected system clock skew between this node and the vCenter Single Sign-On"
+    }
+   ],
+   "cause": "Host time skew (including VM-level tools time sync at start-up) breaks AD/SSO authentication.",
+   "resolution": [
+    "Correct host time/NTP; if DRS moves vCenter between hosts with different time, set automation to Manual for that cluster; check VM Tools time sync settings."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Name resolution failures (DNS)",
+   "priority": 0,
+   "rules": [
+    "esx.dns"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "404851",
+     "title": "vCenter Shows Host Status is Unknown During NSX Prep with vLCM"
+    },
+    {
+     "id": "322317",
+     "title": "\"Host cannot download files from VMware vSphere Update Manager patch store.\" on an ESXi host"
+    },
+    {
+     "id": "401175",
+     "title": "Error fetching certificate(s) in vCenter UI Certificate Manager after replacing certificate"
+    },
+    {
+     "id": "398402",
+     "title": "VDT logs for vCenter show [FAIL] SSL Connectivity - Investigate error: [vc:443]:[Errno -2] Name or service not known"
+    }
+   ],
+   "cause": "Faulty/missing DNS on the host, or missing forward/reverse records for vCenter.",
+   "resolution": [
+    "Run nslookup for the vCenter FQDN and IP from both vCenter and the affected host: a failure on the host = host DNS settings; on vCenter = resolver config or missing records.",
+    "Verify the DNS server in the host management network settings, restart the management network.",
+    "Add any missing A/PTR records (forward and reverse are required), then restart vCenter services.",
+    "vCenter resolv.conf with no search domain: set via vami_config_net (VAMI only exposes DNS servers)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Expired / invalid vCenter and ESXi certificates",
+   "priority": 0,
+   "rules": [
+    "esx.cert",
+    "vc.503",
+    "vc.sso"
+   ],
+   "match": "expire|certificate|ssl|verify failed|not valid",
+   "articles": [
+    {
+     "id": "344201",
+     "title": "Error: \"no healthy upstream\" or \"503 Service Unavailable\" when accessing vCenter Server (verify and resolve expired vCenter certificates)"
+    },
+    {
+     "id": "413685",
+     "title": "vSphere Client reports \"no healthy upstream\" due to expired certificates"
+    },
+    {
+     "id": "396907",
+     "title": "Machine SSL certificate replacement and auto-renewal in vCenter Server 8.x"
+    },
+    {
+     "id": "440277",
+     "title": "vCenter certificate replacement fails at 85% with rollback using certificate-manager"
+    }
+   ],
+   "cause": "MACHINE_SSL, STS or Solution User certificate (or an issuer) is past its validity.",
+   "resolution": [
+    "Confirm expiry: list each VECS store with vecs-cli and read the Not After dates.",
+    "Replace with vCert.py (Option 3 Manage certificates > Option 1 Machine SSL, VMCA-signed) or Certificate Manager; take a snapshot first (all nodes in Enhanced Linked Mode); restart services.",
+    "ESXi host cert: Configure > Certificates > Renew; for HA clusters set vpxd.certmgmt.mode=vmca.",
+    "vCenter 8.0 U3h+ with vpxd.certmgmt.mode=vmca renews Machine SSL automatically 5 days before expiry.",
+    "If replacement fails at 85%, check the PNID vs certificate FQDN (case-sensitive). A thumbprint mismatch with no expiry can be an SSL-inspecting firewall."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "ESXi root lockout / \"Cannot login user root@127.0.0.1: no permission\"",
+   "priority": 0,
+   "rules": [
+    "esx.auth"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "340038",
+     "title": "ERROR: Remote access for ESXi local user account 'root' has been locked for 120 seconds"
+    },
+    {
+     "id": "424130",
+     "title": "ESXi Root Account Lockouts and Configuration Alerts in HPE Alletra/Nimble Environments"
+    },
+    {
+     "id": "319996",
+     "title": "\"Cannot login user root@127.0.0.1: no permission\" in ESXi host events when lockdown mode is enabled on ESXi"
+    },
+    {
+     "id": "378651",
+     "title": "ESXi Displays Repeated \"Cannot Login User root@127.0.0.1: No Permission\" Events After Upgrading to Version 8.0 U3 with Lockdown Mode Enabled"
+    }
+   ],
+   "cause": "Two different problems: (1) real lockout from repeated bad root logins (often a third-party service/array with stale credentials); (2) Lockdown Mode denying root@127.0.0.1 sessions - events only, not a lockout.",
+   "resolution": [
+    "Lockout: find the source in hostd.log (\"Rejected password for user root\" shows the IP) and fix that client; temporary workaround Security.AccountLockFailures=0 weakens protection - restore after.",
+    "HPE Alletra/Nimble: apply the vendor patch, make the stored root credential match, clear with pam_tally2 --user root --reset.",
+    "Lockdown events: add root to the Lockdown Mode Exception Users list; resolved in ESXi 8.0 U3e."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VM crash / unexpected power-off (vmx signal)",
+   "priority": 0,
+   "rules": [
+    "esx.vmx_crash"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "339691",
+     "title": "Determining Why a Virtual Machine was Unexpectedly Powered Off, Restarted, or Rebooted"
+    },
+    {
+     "id": "432273",
+     "title": "Unexpected shut down or crash of the Virtual Machine due to I/O Blockage and Resets."
+    }
+   ],
+   "cause": "Find the evidence in the VM vmware.log (\"Caught signal\" / \"Unexpected signal\"); I/O blockage with repeated hard resets is one documented cause.",
+   "resolution": [
+    "Locate the VM working directory (VM Options) and read vmware.log; collect the vmx-zdump core and, if needed, convert a suspended state with vmss2core.",
+    "If none of the known cases below match, open a Broadcom case with vmx-zdump, vmware.log and an ESXi support bundle."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vmx crash during Storage vMotion after guest reboot",
+   "priority": 0,
+   "rules": [
+    "esx.vmx_crash"
+   ],
+   "match": "storage vmotion|svmotion",
+   "articles": [
+    {
+     "id": "312828",
+     "title": "Guest OS reset request (reboot) when Storage vMotion task is running may cause the virtual machine to PANIC, and Storage vMotion fails"
+    }
+   ],
+   "cause": "Guest reboot during Storage vMotion (signal 11).",
+   "resolution": [
+    "Power off the VM before starting Storage vMotion."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vmx crash with backup (TSDM / LWD, signal 6/11)",
+   "priority": 0,
+   "rules": [
+    "esx.vmx_crash"
+   ],
+   "match": "LWD|TSDM",
+   "articles": [
+    {
+     "id": "434693",
+     "title": "Transparent Snapshot Data Mover (TSDM) With LWD causing VM system crash 'Caught signal 6/11 on LWD unstun disk'"
+    }
+   ],
+   "cause": "Known issue; Broadcom engineering is aware and a fix is planned. No workaround listed in the summary.",
+   "resolution": [],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vmx PANIC in MKS (VERIFY pollVMX.c)",
+   "priority": 0,
+   "rules": [
+    "esx.vmx_crash"
+   ],
+   "match": "pollVMX|mks",
+   "articles": [
+    {
+     "id": "394512",
+     "title": "VM vmx Crash fails with mks - PANIC: VERIFY bora/vmx/main/pollVMX.c:4348"
+    }
+   ],
+   "cause": "Fixed in ESX 9.0 / VMRC 13.0.",
+   "resolution": [
+    "Interim: add ticket.webmks.timeout.seconds = 10 to the VM and restart it."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Snapshot consolidation: \"Failed to lock the file\"",
+   "priority": 0,
+   "rules": [
+    "esx.snapshot"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "374141",
+     "title": "Snapshot consolidation failure: Failed to lock the file error"
+    },
+    {
+     "id": "372336",
+     "title": "\"Virtual machine Consolidation Needed Status\" \"Unable to access file since it is locked\" \"Failed to lock the file\""
+    },
+    {
+     "id": "313833",
+     "title": "VMware virtual machine file lock on VMFS datastore"
+    },
+    {
+     "id": "418718",
+     "title": "Third party backup fail to consolidate snapshot files"
+    },
+    {
+     "id": "402937",
+     "title": "Virtual machines on NFSv3 datastores might fail due to a failed snapshot consolidation during backup"
+    }
+   ],
+   "cause": "Usually a backup proxy (hot-add) still holding the disk; also stale hostd/vpxa descriptors or a lock held by another host after vMotion/HA.",
+   "resolution": [
+    "Find the lock owner: vmfsfilelockinfo -p <vmdk> (vSAN: lsof).",
+    "Detach the VMDKs from the backup proxy VM - \"Remove from virtual machine only\", NOT \"Delete files from datastore\" - outside the backup window; power-cycle the proxy if the lock persists.",
+    "If hostd holds the lock, restart hostd/vpxa on that host; host reboot is the last resort.",
+    "Retry Consolidate. NFSv3 on ESXi 8.0: known race fixed in 8.0 U3e. 255+ redo logs in one branch blocks new snapshots."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vMotion \"Timed out waiting for migration data\"",
+   "priority": 0,
+   "rules": [
+    "esx.vmotion"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "324526",
+     "title": "vMotion of VM fails with error: \"Timed out waiting for migration data\""
+    },
+    {
+     "id": "426222",
+     "title": "Storage vmotion tasks fails with the error \"The source detected that the destination failed to resume ...Timed out waiting for migration data.\""
+    },
+    {
+     "id": "421571",
+     "title": "VMs using Nvidia Grid vGPU hitting Xids and failing to migrate at 68%"
+    }
+   ],
+   "cause": "The destination received no data from the source for the default 120 s.",
+   "resolution": [
+    "Check IP conflicts on the vMotion vmknics; run vmkping for the whole migration (use -s with jumbo frames); verify matching port-group security settings (e.g. promiscuous mode).",
+    "Storage vMotion: a PDL on the source datastore needs a host reboot in a maintenance window. vGPU Xid case: fixed from ESXi 8.0 U3h.",
+    "Look for PDL, Xid or NIC TX-hang messages in vmkernel and vmware.log on both hosts."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "\"No healthy upstream\" / 503 - find the real cause",
+   "priority": 0,
+   "rules": [
+    "vc.503"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "344201",
+     "title": "Error: \"no healthy upstream\" or \"503 Service Unavailable\" when accessing vCenter Server"
+    },
+    {
+     "id": "405611",
+     "title": "\"No Healthy Upstream\" Error When Accessing vSphere Client in vCenter Server Due to Datastore Space Constraints"
+    },
+    {
+     "id": "416676",
+     "title": "vCenter UI shows error \"No healthy upstream\", due to memory contention"
+    },
+    {
+     "id": "407484",
+     "title": "vCenter Server UI displays \"no healthy upstream\" due to vpxd service failing to start"
+    },
+    {
+     "id": "423625",
+     "title": "The vSphere UI is not accessible, displaying \"No healthy upstream\" and vmware-sps and vmware-vpxd failed to start"
+    },
+    {
+     "id": "422821",
+     "title": "vCenter Server UI unavailable with \"No healthy upstream\" error and it complains about missing key (__MACHINE_CERT) in STS_INTERNAL_SSL_CERT store"
+    }
+   ],
+   "cause": "A generic symptom - the reverse proxy has no healthy backend. Broadcom documents several distinct causes.",
+   "resolution": [
+    "Check vmon/vpxd/sps service status and certificate expiry first.",
+    "Expired Machine SSL / STS / Solution User certificates: replace with vCert, restart services.",
+    "Host memory exhausted where vCenter runs: free memory or migrate workloads, then restart.",
+    "Full datastore / Photon file-system damage (emergency mode): expand datastore, run fsck.",
+    "Bad /etc/hosts: re-enter hostname/IP with vami_config_net. Duplicate \"useSSL\" in vpxd.cfg: remove duplicate. Stale STS_INTERNAL_SSL_CERT store: remove from VECS.",
+    "If it persists collect a vc-support bundle and contact Broadcom Support."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vpxd crashes (core.vpxd-worker)",
+   "priority": 0,
+   "rules": [
+    "vc.vpxd_crash"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "367750",
+     "title": "vpxd service intermittently crashes with core dump (core.vpxd-worker), causing vCenter server UI will display blank inventory on vSphere 8.0 U1"
+    },
+    {
+     "id": "408747",
+     "title": "vmware-vpxd service crash with core dump \"core.vpxd-worker.#######\" on vCenter Server"
+    },
+    {
+     "id": "418943",
+     "title": "vmware-vpxd service crash with core dump \"core.vpxd-worker.xxxxxxx\" on vCenter Server"
+    },
+    {
+     "id": "318750",
+     "title": "/storage/core Partition Full Due to Core Files in vCenter Server Appliance"
+    }
+   ],
+   "cause": "Several documented causes; match the backtrace/log to one.",
+   "resolution": [
+    "Heap exhaustion: add heap (KB 320871) and find monitoring/backup tools making excess sessions/API calls (workaround only).",
+    "vSphere 8.0 U1 HTTP/2 flaw crash: resolved in 8.0u1c - patch to the latest 8.0u3 build.",
+    "Corrupt Host Profile table entries (snapshot first, remove the offending profiles; may recur on another).",
+    "Duplicate <enabled> tags in vpxd.cfg: back up, remove duplicate, restart.",
+    "Full /storage/core: df -h /storage/core, remove old core files, restart services.",
+    "Check /var/log/vmware/vpxd/vpxd.log for panic/backtrace and vmon.log for core notices; if nothing matches open a Broadcom case with logs."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vpxd \"Too many outstanding operations\" / duplicate VM after Storage vMotion / NVMe disk expand",
+   "priority": 0,
+   "rules": [
+    "vc.vpxd_crash"
+   ],
+   "match": "outstanding operations|duplicate|nvme",
+   "articles": [
+    {
+     "id": "318208",
+     "title": "vCenter Server vpxd service crashes due to \"Too many outstanding operations\""
+    },
+    {
+     "id": "401096",
+     "title": "vmware-vpxd crash after incomplete storage vMotion leaves duplicate, inaccessible VM in vCenter inventory"
+    },
+    {
+     "id": "372225",
+     "title": "VPXD crashes with core.vpxd-worker after expanding disk size which is configured with NVMe controller on vCenter Server 8.0 U3"
+    }
+   ],
+   "cause": "LRO queue overflow fixed in 7.0 U3i; duplicate inaccessible VM left in inventory; NVMe disk-expansion bug fixed in 8.0 U3b.",
+   "resolution": [
+    "Patch to the fixed build, or remove the stale duplicate VM (contact Broadcom support) and restart services."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vPostgres: \"remaining connection slots are reserved\"",
+   "priority": 0,
+   "rules": [
+    "vc.db"
+   ],
+   "match": "connection slots|too many (clients|connections)",
+   "articles": [
+    {
+     "id": "344930",
+     "title": "Some vCenter Server services fail to start with the error: FATAL: remaining connection slots are reserved for non-replication superuser connections"
+    }
+   ],
+   "cause": "All 100 default connection slots in use.",
+   "resolution": [
+    "Back up /storage/db/vpostgres/postgresql.conf, set max_connections=250, reboot (each slot uses ~400 bytes of shared memory)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VCDB / vPostgres out of disk space",
+   "priority": 0,
+   "rules": [
+    "vc.db",
+    "vc.disk_full"
+   ],
+   "match": "seat|extend file|vpx_|vacuum|/storage/db|database",
+   "articles": [
+    {
+     "id": "410118",
+     "title": "Error: \"No space left on device\" when running VCDB commands such as reindex, truncate, and vacuumdb. The vCenter /storage/seat partition is 100% full"
+    },
+    {
+     "id": "318931",
+     "title": "/storage/seat disk 100% full on vCenter Server Appliance 6.x/7.x/8.x"
+    },
+    {
+     "id": "387607",
+     "title": "/storage/seat partition filled 100% and unable to perform vacuumdb or truncate the table in vCenter 8.0U3"
+    },
+    {
+     "id": "318880",
+     "title": "VCSA database storage \"/storage/db\" is full or nearly full"
+    },
+    {
+     "id": "318134",
+     "title": "\"Insufficient free space for the Database\" error causes vpxd services to shut down during upgrade failure"
+    }
+   ],
+   "cause": "At 95%+ full, vPostgres refuses to create/extend files and vpxd is not allowed to run. Usual /storage/seat trigger is an event flood (e.g. hardware-health alarms from a host).",
+   "resolution": [
+    "Find the noisy source: query VCDB for the largest event/task tables; investigate the host generating the events.",
+    "Stop vpxd and content library, then truncate the large event/task tables one at a time; use the \"Delete old tasks, events and statistics\" script (KB 2110031) if needed.",
+    "If 100% full, vacuumdb/reindex/TRUNCATE fail for lack of temp space: move old vpostgres table folders to a temp location with symlinks (KB 410118 workaround) or extend the disk first.",
+    "Last resort: power off, grow the VMDK (no snapshot attached), power on, run /usr/lib/applmgmt/support/scripts/autogrow.sh.",
+    "/storage/db full: extend first (cleanup needs overhead), then reclaim bloat with vacuum full (services stopped).",
+    "Snapshot guidance per 410118: take offline snapshots of linked vCenters (online for standalone) before the first two steps, but not before growing a disk."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VCSA partition full - how to grow a disk",
+   "priority": 0,
+   "rules": [
+    "vc.disk_full"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "316602",
+     "title": "Increasing the disk space for the vCenter Server Appliance in vSphere 6.5, 6.7, 7.0 and 8.0"
+    },
+    {
+     "id": "318953",
+     "title": "vCenter Server Appliance disk space is full"
+    },
+    {
+     "id": "313077",
+     "title": "vCenter log disk exhaustion or /storage/log full"
+    },
+    {
+     "id": "409413",
+     "title": "The log partition size on this vCenter Server is smaller than the recommended 50 GB"
+    }
+   ],
+   "cause": "A /storage/* volume or / is at 100%.",
+   "resolution": [
+    "Identify the full volume first: df -h (and df -i for inodes), lsblk; map the device to its SCSI ID in VM Edit Settings.",
+    "Remove VM snapshots and take a backup; grow the VMDK; run /usr/lib/applmgmt/support/scripts/autogrow.sh; restart services if vpostgres stopped.",
+    "/storage/log: look for the largest files/dirs and known log-bloat bugs first; 50 GB is the recommended size from 8.0 U3h.",
+    "If the extend option is greyed out, snapshots or the datastore max disk size are the usual cause."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "/storage/log filled by Java heap dumps",
+   "priority": 0,
+   "rules": [
+    "vc.disk_full",
+    "vc.oom_kill"
+   ],
+   "match": "hprof|heap dump|java_pid",
+   "articles": [
+    {
+     "id": "318173",
+     "title": "vCenter Server Appliance /storage/log partition runs out of space due to VMware Analytics service dump files (analytics/java_pidxxxx.hprof)"
+    },
+    {
+     "id": "375839",
+     "title": "Resolving /storage/log Disk Space Issues caused by Infraprofile Java Heap Dump Files in vCenter Server"
+    },
+    {
+     "id": "393690",
+     "title": "Resolving /storage/log Disk Space Issues Caused by vmware-cis-license Java Heap Dump Files in vCenter Server"
+    }
+   ],
+   "cause": "",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
+   "topic": "vCenter upgrade: target /storage/seat too small for the imported data",
+   "priority": 5,
+   "rules": [
+    "vc.upg_fail",
+    "vc.upg_sizing",
+    "vc.disk_full",
+    "vc.db"
+   ],
+   "match": "upgrad|import|firstboot|SEAT|stage|deployment size",
+   "articles": [
+    {
+     "id": "322286",
+     "title": "vCenter Appliance Upgrade Fails at Stage 2 (50%) with Error 'A problem occurred while Exporting VMware vCenter Authentication Framework data..'"
+    },
+    {
+     "id": "326287",
+     "title": "The VCSA Installation wizard incorrectly detects the storage deployment size of the source vCenter during migration or upgrade"
+    },
+    {
+     "id": "412941",
+     "title": "Unable to select the same deployment size when upgrading vCenter Server"
+    },
+    {
+     "id": "404664",
+     "title": "Disk space discrepancy on vCenter disks after upgrading"
+    }
+   ],
+   "cause": "The target lacks space on /storage/seat for all the upgrade data (log typically shows OSError: [Errno 28] in /var/log/vmware/upgrade/upgrade-export.log). The installer sizes the target from the source provisioned space; if the source /storage/seat, /storage/db or /storage/updatemgr is >50% full the wizard can under-size it.",
+   "resolution": [
+    "Re-run Stage 1 and choose the next larger deployment/storage size (the wizard offers only larger sizes when the source provisioned space exceeds the Default storage).",
+    "Or finish Stage 1 and add about 50 GB to the /storage/seat disk on the new appliance before Stage 2 (snapshot first).",
+    "Or truncate large source database tables (events/tasks) and re-run the upgrade.",
+    "Before choosing, run df -h on the source: if /storage/seat is over half full the sizing can be skewed.",
+    "If the target size is smaller than the source provisioned size and cannot be selected, deploy a fresh install of the same size and run Stage 2 as an upgrade (KB 412941)."
+   ],
+   "notes": "KB 322286 is titled for a Stage 2 (50%) Authentication Framework export failure; the search summaries describe the target /storage/seat shortage under it - read the article to confirm it matches your log.",
+   "basis": "summary"
+  },
+  {
+   "topic": "vCenter upgrade: source export partition \"/\" too small",
+   "priority": 5,
+   "rules": [
+    "vc.upg_fail",
+    "vc.disk_full"
+   ],
+   "match": "export partition|source disk|too small|export",
+   "articles": [
+    {
+     "id": "382898",
+     "title": "Upgrading vCenter Server fails at Stage2 - 'Insufficient space on the source export partition '/' to accommodate all the data for upgrade data'"
+    },
+    {
+     "id": "318157",
+     "title": "Upgrade to vCenter 7.0 Update 2 fails at Stage 2 with error The source disk '/' is too small to fit the export requirements."
+    }
+   ],
+   "cause": "Export directory on the source / partition is too small.",
+   "resolution": [
+    "Pick a directory with free space (e.g. /storage/core) in the installer \"Export directory\" field.",
+    "7.0 U2 specific variant: fixed in 7.0 U2c; workaround is to finish the upgrade from the new appliance VAMI on port 5480."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vCenter upgrade: Stage 2 \"no space left\" can also be an unsupported upgrade path",
+   "priority": 5,
+   "rules": [
+    "vc.upg_fail",
+    "vc.upg_sizing",
+    "vc.disk_full"
+   ],
+   "match": "import (copied )?data|Import of",
+   "articles": [
+    {
+     "id": "407600",
+     "title": "vCenter upgrade fails in stage 2 on step 3 Import copied data to target vCenter"
+    }
+   ],
+   "cause": "The \"no space left on device\" import error was reported alongside a version mismatch (e.g. upgrading from a newer 7.0 patch to an older 8.0 release).",
+   "resolution": [
+    "Check the source and target versions against the VMware Interoperability Matrix."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vCenter upgrade: vpxd_firstboot failures (causes to check)",
+   "priority": 5,
+   "rules": [
+    "vc.upg_fail"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "321336",
+     "title": "vCenter Server Appliance upgrade from 6.5 To 6.7 fail during \"vpxd firstboot\""
+    },
+    {
+     "id": "324989",
+     "title": "Firstboot Failed during Install, Deployment, Upgrade, or Migration in vCenter Server and vCenter Server Appliance 6.7"
+    },
+    {
+     "id": "321371",
+     "title": "Firstboot fails when upgrading vCenter Server Appliance due to time synchronization issue"
+    },
+    {
+     "id": "370902",
+     "title": "vCenter upgrade to 8.x fails with a firstboot error due to \"RESTART value (XXXXXXXXXX) cannot be greater than MAXVALUE (4294965000)\""
+    },
+    {
+     "id": "338851",
+     "title": "Firstboot fails due to Authentication/Password or Permissions when installing or upgrading or migrating in vCenter Server 6.7 and 7.0"
+    },
+    {
+     "id": "392535",
+     "title": "The vCenter upgrade failed in Stage 2: content-library-firstboot.py and vdcsvc firstboot failed - already exists"
+    }
+   ],
+   "cause": "Several different causes; the real error is in the firstboot logs, not in the installer message.",
+   "resolution": [
+    "Start with /var/log/firstboot/firstbootStatus.json (which step failed) and the matching vpxd_firstboot stderr/stdout logs.",
+    "vpxd start timeout (default 5 min, 6.5->6.7 case): pause at Stage 1, raise StartTimeout in vpxd.json (300 -> 3000 s), resume Stage 2 - check the path/values apply to your version.",
+    "vCenter 8.x DB upgrade failing on event sequence value: stop vpxd, reset the sequence, clean up event tables, restart the upgrade (offline snapshot first).",
+    "Verify the target ESXi host is NTP-synchronised and DNS records exist (IP-only deployments without DNS are not supported); check SSO password special characters and certificate errors.",
+    "No Broadcom rollback procedure for a failed Stage 2 was found in the KBs; the offline snapshot taken before the upgrade is the practical rollback point."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "SSO / STS login failures from expired certificates",
+   "priority": 0,
+   "rules": [
+    "vc.sso"
+   ],
+   "match": "sts|token|credentials|solution user|signing|authentication",
+   "articles": [
+    {
+     "id": "390983",
+     "title": "Accessing vCenter Server fails with Error: [400] vCenter SSO authentication request failure due to expired certificates"
+    },
+    {
+     "id": "421381",
+     "title": "vCenter Server inaccessible due to expired Solution User certificates"
+    },
+    {
+     "id": "436368",
+     "title": "vCenter Server 400 Single Sign-On Error Failed to Retrieve STS Client"
+    },
+    {
+     "id": "338889",
+     "title": "\"Signing certificate is not valid\" error in vCenter Server 6.5.x and 6.7.x on Windows"
+    },
+    {
+     "id": "322178",
+     "title": "Error \"[500] An error occurred while fetching identity providers\" appears while login to vCenter Server UI"
+    }
+   ],
+   "cause": "Expired STS signing, Machine SSL or Solution User certificates (vpxd.log \"AcquireToken exception ... Invalid credentials\").",
+   "resolution": [
+    "Confirm which certificates expired with vCert or vecs-cli.",
+    "Snapshot first (every node in Enhanced Linked Mode), renew Solution User and STS certificates with vCert (option 6 resets all if several are expired), restart services on every node."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vCenter services fail to start (vpxd / vmon)",
+   "priority": 0,
+   "rules": [
+    "vc.service_down",
+    "vc.vpxd_crash"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "345089",
+     "title": "vCenter server service (vpxd) fails to start after reboot"
+    },
+    {
+     "id": "434860",
+     "title": "vCenter Server vpxd fails to start after a reboot, patching, or certificate renewal"
+    },
+    {
+     "id": "377224",
+     "title": "VPXD services fails to start and you see error \"service vpxd not found\""
+    },
+    {
+     "id": "410324",
+     "title": "vCenter server services fail to start, vpxd-svcs operation timed out."
+    },
+    {
+     "id": "389873",
+     "title": "Many vCenter services are not started due to VCHA settings are still in config file"
+    },
+    {
+     "id": "433481",
+     "title": "vCenter services fail to start after a failed domain repoint operation"
+    }
+   ],
+   "cause": "Several causes; \"service-control --start --all\" often reports a vpxd timeout while the real error is in vmon.log.",
+   "resolution": [
+    "Read /var/log/vmware/vmon/vmon.log for the first error, then vpxd.log.",
+    "Duplicate useSSL or malformed XML in /etc/vmware-vpx/vpxd.cfg: back up, fix, restart. Malformed vpxd.json (\"service vpxd not found\"): restore from a healthy node of the same version.",
+    "Expired certificate in the Machine SSL chain: replace it, restart services.",
+    "After a failed repoint / missing registrations: lsdoctor.py -r then restart.",
+    "VCHA leftovers: set /storage/vmware-vmon/defaultStartProfile to ALL.",
+    "Snapshot before editing any config."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Lookup Service client errors in vpxd (\"LS client adapter\")",
+   "priority": 0,
+   "rules": [
+    "vc.ls_client"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "80867",
+     "title": "KB number from the supplied TDLog report (not independently retrieved)"
+    },
+    {
+     "id": "339619",
+     "title": "vCenter Server 7.0 services fails to start in an EVC enabled cluster"
+    },
+    {
+     "id": "315461",
+     "title": "lookupsvc or vpxd-svcs fails to start with error"
+    },
+    {
+     "id": "322294",
+     "title": "vCenter services fail to start due to vpxd error: \"Failed to initialize authorizeManager\""
+    }
+   ],
+   "cause": "The Lookup Service refused connections. Documented causes: stale/mismatched SSL trust, duplicate or stale service registrations, EVC re-registration case, TLS cipher mismatch after patching.",
+   "resolution": [
+    "Run lsdoctor in report-only mode (-l) first; then --trustfix for SSL trust mismatches; lsdoctor.py -r (option 3 for duplicates, with lstool.py to unregister bad IDs) for stale registrations - snapshot first.",
+    "EVC case (KB 339619): vCenter 7.0 U1 VM re-registered from a 6.5 U3 host; disable EVC on the cluster or register the VM on a non-EVC cluster/host; resolved in ESXi 7.0 U1C.",
+    "Patching to 7.0 U3q: run the reset-ciphers script (stop rhttpproxy first)."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Java heap OutOfMemoryError in vCenter services",
+   "priority": 0,
+   "rules": [
+    "vc.oom_kill"
+   ],
+   "match": "OutOfMemoryError|Java heap",
+   "articles": [
+    {
+     "id": "344908",
+     "title": "\"503 Service Unavailable\" vCenter Server stops responding due to Secure Token Service (vmware-stsd) OutOfMemoryError"
+    },
+    {
+     "id": "375839",
+     "title": "Resolving /storage/log Disk Space Issues caused by Infraprofile Java Heap Dump Files"
+    },
+    {
+     "id": "393690",
+     "title": "Resolving /storage/log Disk Space Issues Caused by vmware-cis-license Java Heap Dump Files"
+    },
+    {
+     "id": "159679",
+     "title": "How to address out of memory errors (OOM)"
+    }
+   ],
+   "cause": "A vCenter Java service ran out of heap.",
+   "resolution": [
+    "Check the current allocation: cloudvm-ram-size -l; raise it with cloudvm-ram-size -C <MB> <service> (e.g. 1024 for vmware-stsd), restart the service; you may need to add VM RAM first.",
+    "Snapshot/backup first; if it persists open a Broadcom case."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "vmdir / Enhanced Linked Mode replication problems",
+   "priority": 0,
+   "rules": [
+    "vc.replication"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "369151",
+     "title": "VMDir replication is not working between partners / Vmdir service is not in Normal state - upgrade pre-check fails"
+    },
+    {
+     "id": "312122",
+     "title": "vCenter Server Preupgrade check result error: \"VMDir Replication between partners is not working\""
+    },
+    {
+     "id": "369323",
+     "title": "vCenter Server Replication Status Change Alarm"
+    },
+    {
+     "id": "376504",
+     "title": "Enhanced Linked Mode (ELM) Replication Broken between vCenter Server Appliance (VCSA) Nodes"
+    },
+    {
+     "id": "400283",
+     "title": "Removing a vCenter Server or PSC nodes from Enhanced Linked Mode that no longer exists"
+    },
+    {
+     "id": "406041",
+     "title": "vCenter Enhanced Linked Mode replication broken after vCenter IP address change"
+    }
+   ],
+   "cause": "Replication broken or vmdir left in Standalone/Failure state; stale agreements from decommissioned nodes; USN mismatch after a single-node restore.",
+   "resolution": [
+    "Take offline snapshots of ALL nodes in the SSO domain first.",
+    "Check: vdcrepadmin -f showpartnerstatus -h localhost -u administrator on each node; vdcadmintool option 6 for vmdir state.",
+    "Restart all services on the affected node; for Standalone state see KB 369323 (edit vmdird args, lwsm refresh, dir-cli set NORMAL - may revert after reboot if the cause remains).",
+    "Read-only after a single-node restore: vdcadmintool option 5 to set NORMAL; if that fails, the fixpsc workflow (KB 312122/376504).",
+    "Stale partners from removed nodes: showpartners then cmsso-util unregister (KB 400283). After an IP change open LDAP 389 between nodes (KB 406041).",
+    "Commands differ by version (8.0 U3+ differs) - verify against the KB."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "VM power-on blocked by HA admission control",
+   "priority": 0,
+   "rules": [
+    "vc.task_fail"
+   ],
+   "match": "failover level|Insufficient resources",
+   "articles": [
+    {
+     "id": "400611",
+     "title": "Power on vm failed with error: Insufficient resources to satisfy configured failover level for vSphere HA"
+    },
+    {
+     "id": "301492",
+     "title": "VM Power On Fails with \"operation failed: Insufficient resources to satisfy configured failover level for vsphere HA\""
+    },
+    {
+     "id": "421814",
+     "title": "\"Insufficient resources to satisfy configured failover level for vSphere HA\" error when Powering ON a Virtual Machine"
+    }
+   ],
+   "cause": "Admission control refuses placement that would eat into reserved failover capacity (VM CPU/memory reservations are a common trigger; 2-node clusters reserve 50% by design).",
+   "resolution": [
+    "Add hosts, reduce/remove VM reservations, lower the failover percentage, move VMs elsewhere or power off non-essential VMs.",
+    "Temporarily disabling admission control lets the VM power on but removes the failover guarantee - re-enable it.",
+    "Phantom host count in a 2-node cluster: remove and re-add the host."
+   ],
+   "notes": "",
+   "basis": "summary"
+  },
+  {
+   "topic": "Directory service schema/ACL on upgraded vCenter",
+   "priority": 0,
+   "rules": [
+    "vc.acl_legacy"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "78543",
+     "title": "KB number from the supplied TDLog report (not independently retrieved)"
+    },
+    {
+     "id": "80490",
+     "title": "\"VMware Directory Service schema update failed\" while upgrading from vCenter Server 7.0 to 7.0 Update1"
+    }
+   ],
+   "cause": "VMSA-2020-0006 / CVE-2020-3952 affects vCenter 6.7 / PSC before 6.7 U3f only if upgraded from an earlier release line (6.0/6.5); KB 78543 determines whether an environment is affected. Separately, \"ACL MODE: Legacy\" appears in PatchRunner.log when a 7.0 to 7.0 U1 schema patch fails (legacy VMDIR schema, DFL 4) - fixed in 7.0 U1C.",
+   "resolution": [
+    "Update to 6.7 U3f or later and use KB 78543 to check exposure.",
+    "7.0 -> 7.0 U1 schema-update failure: resolved in 7.0 U1C."
+   ],
+   "notes": "",
+   "basis": "summary"
+  }
+ ]
+}

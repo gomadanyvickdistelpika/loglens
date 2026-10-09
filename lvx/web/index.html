@@ -58,6 +58,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 .prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 .msg{color:var(--mute);font-size:12px;margin-top:6px}.err{color:var(--crit)}
 @media (max-width:820px){#app{grid-template-columns:1fr;height:auto}aside{border-right:0;border-bottom:1px solid var(--line)}}
+.kbx{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px}.kbx.none{opacity:.85}.kbe{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}.kbx ol{margin:4px 0 4px 20px;padding:0}
 </style>
 </head>
 <body>
@@ -153,6 +154,22 @@ async function loaded(b) {
   $('#go').disabled = false; const f = await api('/api/bundles/' + b.id + '/files'); S.files = f.files; drawFiles();
 }
 const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd/i;
+
+function kbBlock(r) {
+  if (!r) return '';
+  if (r.status === 'none') return '<div class="kbx none"><b>Broadcom KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>Broadcom KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  r.entries.forEach(en => {
+    h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : '') + '<div>'
+      + en.articles.slice(0, 4).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + '</div>';
+    if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
+    h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
+      : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';
+    if (en.notes) h += '<div class="meta">Note: ' + esc(en.notes) + '</div>';
+    h += '</div>'; });
+  if (r.more) h += '<div class="meta">+ ' + r.more + ' more related topic(s) in the JSON export.</div>';
+  return h + '</div>';
+}
 function drawFiles() {
   const q = $('#ffilter').value.toLowerCase(); const el = $('#files'); el.innerHTML = '';
   S.files.filter(f => !q || f.path.toLowerCase().includes(q)).slice(0, 600).forEach(f => {
@@ -198,14 +215,16 @@ function renderFind() {
     if (f.advice) h += '<div style="margin:6px 0"><b>Next step:</b> ' + esc(f.advice) + '</div>';
     if (f.search) h += '<div class="meta">KB search phrase: <code>' + esc(f.search) + '</code></div>';
     f.samples.slice(0, 3).forEach(s => { h += '<pre class="ev">' + (s.context || []).map(esc).join('\n') + (s.context && s.context.length ? '\n' : '') + '<b>' + esc(s.text) + '</b></pre><a class="lnk" data-f="' + esc(s.file) + '" data-l="' + s.line + '">open ' + esc(s.file) + ':' + s.line + ' in viewer</a> '; });
+    h += kbBlock(f.kb_research);
     if (f.variants.length > 1) h += '<details><summary class="meta">' + f.variants.length + ' message variants</summary>' + f.variants.map(v => '<div class="meta">' + v.count + 'x ' + esc(v.message) + '</div>').join('') + '</details>';
     h += '</div>';
   });
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
+  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of Broadcom knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
   if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
     r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
-      + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + '</div>'; }); }
+      + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }
   $('#pane-find').innerHTML = h;
   $('#pane-find').querySelectorAll('a[data-f]').forEach(a => a.onclick = () => openFile(a.dataset.f, +a.dataset.l));
 }

@@ -5,6 +5,7 @@ Set-Location $PSScriptRoot
 python -m pip install --quiet pyinstaller
 python -m PyInstaller --noconfirm --onefile --name LogLens `
   --add-data "lvx\web;lvx\web" `
+  --add-data "lvx\kb_library.json;lvx" `
   --collect-submodules lvx `
   launcher.py
 Write-Host "Built: $PSScriptRoot\dist\LogLens.exe"

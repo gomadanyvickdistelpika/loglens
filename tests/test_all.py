@@ -267,10 +267,102 @@ class UpgradeFailureRanking(unittest.TestCase):
     def test_no_esxi_wording_for_vcenter_disk(self):
         self.assertNotIn('ESXi', self.by['vc.disk_full']['search'])
 
+    def test_kb_research_on_every_finding(self):
+        for f in self.res['findings']:
+            self.assertIn(f['kb_research']['status'], ('found', 'none'), f['id'])
+            self.assertTrue(f['kb_research']['message'])
+        top = self.by['vc.disk_full']['kb_research']
+        self.assertEqual(top['status'], 'found')
+        ids = [a['id'] for e in top['entries'] for a in e['articles']]
+        self.assertIn('322286', ids)
+        self.assertTrue(all(e['resolution'] for e in top['entries'] if e['basis'] == 'summary'))
+        self.assertEqual(self.by['vc.upg_sizing']['kb_research']['entries'][0]['articles'][0]['id'], '322286')
+        gen = [f for f in self.res['findings'] if f['id'].startswith('gen.')]
+        self.assertTrue(gen)
+        for f in gen:
+            self.assertEqual(f['kb_research']['status'], 'none')
+
+    def test_markdown_and_html_include_kb(self):
+        md = export.to_markdown(self.res)
+        self.assertIn('Broadcom KB research', md)
+        self.assertIn('knowledge.broadcom.com/external/article/410118', md)
+        self.assertIn('No Broadcom KB found', md)
+        self.assertIn('not a live search', md)
+        h = export.to_html(self.res)
+        self.assertIn('Broadcom KB research', h)
+        self.assertIn('href="https://knowledge.broadcom.com/external/article/410118"', h)
+
     def test_markdown_export_mentions_links(self):
         md = export.to_markdown(self.res)
         self.assertIn('downstream symptom', md)
         self.assertIn('Earlier warning', md)
+
+
+class KbResearch(unittest.TestCase):
+    """Broadcom KB research: every rule covered or explicitly 'none', honest wording, well-formed links."""
+
+    def test_library_schema(self):
+        from lvx import kb
+        from lvx.rules import BY_ID
+        lib = kb._load()
+        self.assertGreater(len(lib['entries']), 40)
+        for e in lib['entries']:
+            self.assertTrue(e['topic'] and e['articles'], e['topic'])
+            for r in e['rules']:
+                self.assertIn(r, BY_ID, '%s: unknown rule %s' % (e['topic'], r))
+            for a in e['articles']:
+                self.assertTrue(a['title'])
+                self.assertRegex(kb.article_url(a['id']), r'^https://knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$')
+            if e.get('basis', 'summary') == 'summary':
+                self.assertTrue(e['resolution'] or e['cause'], e['topic'])
+
+    def test_every_rule_has_library_entries(self):
+        from lvx import kb
+        from lvx.rules import R
+        covered = {r for e in kb._load()['entries'] for r in e['rules']}
+        self.assertEqual([r['id'] for r in R if r['id'] not in covered], [])
+
+    def test_none_is_stated_plainly(self):
+        from lvx import kb
+        r = kb.research('esx.psod', 'nothing specific about any known driver', 'x')
+        self.assertEqual(r['status'], 'none')
+        self.assertIn('No Broadcom KB found', r['message'])
+        g = kb.research(None, '', 'some random message', kind='generic')
+        self.assertEqual(g['status'], 'none')
+        self.assertIn('No Broadcom KB found', g['message'])
+        rp = kb.research(None, '', report_kb=None, kind='report')
+        self.assertEqual(rp['status'], 'none')
+
+    def test_match_specific_entry_first(self):
+        from lvx import kb
+        r = kb.research('esx.psod', 'PSOD in world nfnic_worker backtrace', 'x')
+        self.assertEqual(r['status'], 'found')
+        self.assertEqual(r['entries'][0]['articles'][0]['id'], '317954')
+        self.assertTrue(r['entries'][0]['resolution'])
+
+    def test_report_kb_linked(self):
+        from lvx import kb
+        r = kb.research(None, '', report_kb='80867', kind='report')
+        self.assertEqual(r['entries'][0]['articles'][0]['url'], 'https://knowledge.broadcom.com/external/article/80867')
+
+    def test_extra_file_merged_and_broken_file_ignored(self):
+        from lvx import kb
+        d = tempfile.mkdtemp(prefix='lvx_kbx_')
+        try:
+            good = os.path.join(d, 'x.json')
+            with open(good, 'w') as f:
+                json.dump({'entries': [{'topic': 'Mine', 'rules': ['esx.psod'], 'match': None, 'articles': [{'id': '1', 'title': 't'}], 'cause': 'c', 'resolution': ['r']}]}, f)
+            os.environ['LVX_KB_FILE'] = good
+            kb.reset_cache()
+            self.assertTrue(any(e['topic'] == 'Mine' for e in kb._load()['entries']))
+            with open(good, 'w') as f:
+                f.write('{not json')
+            kb.reset_cache()
+            self.assertGreater(len(kb._load()['entries']), 40)
+        finally:
+            os.environ.pop('LVX_KB_FILE', None)
+            kb.reset_cache()
+            shutil.rmtree(d, ignore_errors=True)
 
 
 class ViewerTests(unittest.TestCase):
