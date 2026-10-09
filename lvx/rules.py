@@ -1,0 +1,196 @@
+"""Signature rules. `kw` is a lowercase literal prefilter (cheap) before the regex runs.
+KB numbers are included ONLY where they appear in the supplied GSS Toolbox / TDLog reports;
+otherwise `search` gives a Broadcom KB search phrase. Triage aid, not a root-cause verdict."""
+import re
+
+R = []
+
+
+def rule(id, title, product, severity, topics, kw, pattern, advice, kb=None, search=None, files=None):
+    R.append(dict(id=id, title=title, product=product, severity=severity, topics=topics,
+                  kw=kw.lower(), rx=re.compile(pattern, re.I), advice=advice, kb=kb,
+                  search=search or title, files=re.compile(files, re.I) if files else None))
+
+
+# ---------------- ESXi ----------------
+rule('esx.psod', 'ESXi purple screen / kernel panic', 'esxi', 'critical', ['crash', 'hardware'],
+     'bluescreen', r'@BlueScreen|PSOD|Panic:\s|Exception \d+ in world|#PF Exception|#GP Exception',
+     'Host crashed. Collect the vmkernel-zdump/core, compare the backtrace and check hardware (MCE/ECC) and driver/firmware versions.',
+     search='ESXi purple diagnostic screen PSOD backtrace')
+rule('esx.mce', 'Machine check / uncorrectable memory error', 'esxi', 'critical', ['hardware', 'crash'],
+     'machine check', r'Machine Check|uncorrectable (?:ecc|memory)|hardware error',
+     'Hardware fault reported by CPU/memory. Check the BMC/iLO/iDRAC SEL, replace the failing DIMM/CPU through the OEM.',
+     search='ESXi machine check exception uncorrectable ECC')
+rule('esx.apd', 'Storage: All Paths Down / device lost', 'esxi', 'critical', ['storage'],
+     'path', r'All Paths Down|\bAPD\b (?:start|timeout|exit|event)|permanently inaccessible|\bPDL\b|lost access to volume|device .{0,40} is (?:inaccessible|blocked)',
+     'Host lost all paths to a device/datastore. Check fabric/array/HBA, cabling, zoning and path state (esxcli storage core path list).',
+     search='ESXi All Paths Down APD PDL lost access to volume')
+rule('esx.scsi_sense', 'Storage: SCSI command failures (sense data)', 'esxi', 'high', ['storage'],
+     'scsideviceio', r'ScsiDeviceIO:.*failed H:0x[1-9a-f]|ScsiDeviceIO:.*failed .*D:0x(?:[2-9a-f]|[0-9a-f]{2,})',
+     'Array/HBA returned SCSI errors. Decode H:/D:/P: and sense key (e.g. 0x2 not ready, 0x4 hardware error, 0xb aborted) and engage the storage vendor.',
+     search='ESXi ScsiDeviceIO failed H D P sense data decode')
+rule('esx.latency', 'Storage: device I/O latency deteriorated', 'esxi', 'high', ['storage', 'performance'],
+     'latency', r'performance has deteriorated|I/O latency increased from average value of \d+ microseconds to \d+',
+     'Device latency spiked. Correlate with array performance, queue depth, path failover and VM workload at the same time.',
+     search='ESXi performance has deteriorated I/O latency increased')
+rule('esx.vmfs_lock', 'Storage: VMFS lock/heartbeat/reservation problems', 'esxi', 'high', ['storage'],
+     'vmfs', r'Lost (?:lock|heartbeat)|HB at offset|reservation conflict|Timed out waiting for lock|lock .{0,30} (?:lost|stale)|heartbeat .{0,20}(?:fail|timed out)',
+     'VMFS metadata lock/heartbeat trouble: check storage latency, ATS/SCSI-2 reservations and concurrent access from other hosts.',
+     search='VMFS heartbeat lost lock reservation conflict ESXi')
+rule('esx.nfs', 'Storage: NFS datastore unavailable', 'esxi', 'high', ['storage', 'network'],
+     'nfs', r'NFS.*(?:All Paths Down|unavailable|timed out|not responding|stale|mount .{0,30}fail)|lost access to NFS',
+     'NFS server or network path unreachable. Check server exports, VMkernel NFS port, MTU and firewall.',
+     search='ESXi NFS datastore unavailable APD')
+rule('esx.nic_down', 'Network: physical NIC link down', 'esxi', 'high', ['network'],
+     'link', r'(?:NIC )?Link (?:is )?down|vmnic\d+.{0,40}(?:link down|went down)|Uplink: .{0,40}down|lost (?:uplink )?redundancy|network connectivity lost',
+     'Physical uplink lost link. Check switch port, cable/SFP, NIC firmware/driver (VCG) and physical switch logs.',
+     search='ESXi vmnic link down uplink redundancy lost')
+rule('esx.nic_hang', 'Network: NIC TX timeout / driver hang', 'esxi', 'high', ['network', 'hardware'],
+     'timeout', r'(?:tx|transmit) (?:queue )?timeout|netdev watchdog|Watchdog timeout|adapter (?:hang|reset)|(?:i40e|ixgben|bnxtnet|qedentv|nmlx5_core|igbn|ntg3).{0,60}(?:reset|hang|fail|timeout)',
+     'NIC driver/firmware stalled and reset. Verify driver+firmware against VCG and engage the NIC vendor.',
+     search='ESXi NIC driver tx timeout watchdog reset')
+rule('esx.hostd', 'Management: hostd not responding / errors', 'esxi', 'high', ['services', 'host-connection'],
+     'hostd', r'Hostd.{0,60}(?:not responding|unresponsive|crash|abort|assert)|hostd.{0,40}(?:watchdog|exited|restart)|Unable to (?:connect|reach) hostd|hostd (?:is )?(?:busy|stuck)',
+     'hostd stalled/crashed. Check hostd.log around the time, ramdisk/inode usage, and storage latency that blocks hostd.',
+     search='ESXi hostd not responding')
+rule('esx.vpxa', 'Management: vpxa / host-agent heartbeat loss to vCenter', 'esxi', 'high', ['host-connection', 'network'],
+     'vpxa', r'vpxa.{0,80}(?:heartbeat|timed out|timeout|unable to (?:connect|reach)|lost connection|failed)|Failed to (?:send|get|post) heartbeat|VpxaSocket.{0,40}(?:error|closed)',
+     'Host agent cannot reach vCenter (or vice versa). Check network between host and vCenter (port 443/902), DNS, and vpxa/hostd health.',
+     search='ESXi host disconnected vCenter vpxa heartbeat')
+rule('esx.fdm', 'HA: host isolated / partitioned / FDM failure', 'esxi', 'high', ['ha', 'network'],
+     'fdm', r'fdm.{0,100}(?:isolated|partition|failed to|unreachable|election|master)|host (?:is )?isolated|network isolation|HA agent.{0,40}(?:fail|unreachable)',
+     'vSphere HA saw isolation/partition. Check management network redundancy, isolation addresses (das.isolationaddress) and heartbeat datastores.',
+     search='vSphere HA host isolated FDM partition')
+rule('esx.vsan', 'vSAN: congestion / object or disk health', 'esxi', 'high', ['vsan', 'storage'],
+     'vsan', r'(?:vsan|lsom|dom|cmmds|clom|plog).{0,100}(?:congestion|inaccessible|degraded|unhealthy|failed|permanent error|PermDeviceLoss|object.*lost)',
+     'vSAN data path or device problem. Review vSAN health, disk-group state, congestion and network between hosts.',
+     search='vSAN congestion object inaccessible disk unhealthy')
+rule('esx.oom', 'Memory: out of memory / heap exhaustion', 'esxi', 'high', ['memory'],
+     'memory', r'out of memory|Cannot allocate memory|heap .{0,40}(?:out of space|exhausted|full)|Failed to allocate|memory pool .{0,30}exhaust|oom-?kill',
+     'Resource exhaustion on the host. Check host memory pressure, swap, heap/pool sizes and leaks (hostd/vpxa memory).',
+     search='ESXi out of memory heap exhausted')
+rule('esx.ramdisk', 'Disk space: ramdisk/filesystem full', 'both', 'high', ['disk-space'],
+     'space', r'No space left on device|ramdisk .{0,30}(?:full|out of)|inode.{0,20}(?:exhaust|full|out)|file system.{0,30}full',
+     'A filesystem/ramdisk is full. Find large files (du/vdf) and logs; full ramdisks break hostd/vpxa and logging.',
+     search='ESXi ramdisk full no space left on device')
+rule('esx.ntp', 'Time: NTP unreachable / clock jump', 'both', 'medium', ['time'],
+     'ntp', r'ntpd?.{0,80}(?:unreachable|no server suitable|time reset|sync(?:hroni[sz]ation)? lost|offset too large)|clock .{0,40}(?:jump|drift|stepped)|time (?:has )?(?:jumped|stepped)',
+     'Time sync is unstable. Certificates, SSO tokens and clustering depend on correct time: verify NTP sources and firewall.',
+     search='NTP time synchronization failure vCenter ESXi')
+rule('esx.vmx_crash', 'VM: VMX crash / unexpected termination', 'esxi', 'high', ['vm', 'crash'],
+     'vmx', r'vmx.{0,80}(?:panic|core dump|crashed|assert|unexpected signal|terminat(?:ed|ing) unexpectedly)|VMX has left the building|Unexpected signal: \d+',
+     'The VM monitor process terminated abnormally. Preserve vmware.log and the vmx core; check guest, host memory and storage at that time.',
+     search='virtual machine vmx crash unexpected signal')
+rule('esx.snapshot', 'VM: snapshot/consolidation/lock problems', 'both', 'medium', ['vm', 'backup'],
+     'snapshot', r'consolidat\w*.{0,40}(?:fail|needed|error)|snapshot.{0,60}(?:fail|error|locked|timed out)|Failed to lock the file|Unable to access file .{0,80}(?:locked|since it is locked)',
+     'Backup/snapshot workflow trouble. Check for stale delta disks, backup-proxy locks and datastore space.',
+     search='VM snapshot consolidation needed failed to lock file')
+rule('esx.vmotion', 'VM: vMotion / migration failure', 'both', 'medium', ['vm', 'network'],
+     'vmotion', r'vmotion.{0,80}(?:fail|timed out|error|abort)|migrat\w*.{0,60}(?:failed|timed out)|Failed waiting for data\.',
+     'vMotion failed. Check vMotion VMkernel connectivity/MTU, memory dirtying rate and destination resources.',
+     search='vMotion fails timed out')
+rule('esx.dns', 'Network: name resolution failure', 'both', 'medium', ['dns', 'network'],
+     'resol', r'Name or service not known|Temporary failure in name resolution|unable to resolve|getaddrinfo.{0,30}fail|nodename nor servname|DNS (?:lookup|resolution) (?:fail|error)',
+     'DNS lookups fail. Verify DNS servers, search domains and forward/reverse records for vCenter/ESXi FQDNs.',
+     search='vCenter DNS resolution failure')
+rule('esx.cert', 'Certificate: expired / untrusted / handshake failure', 'both', 'high', ['certificate', 'auth'],
+     'cert', r'certificate.{0,60}(?:expired|not yet valid|verify failed|untrusted|revoked|invalid)|CERTIFICATE_VERIFY_FAILED|SSL(?:_ERROR|.{0,20}handshake.{0,20}fail)|unable to get local issuer',
+     'TLS trust/validity issue. Check certificate expiry (vecs-cli / openssl) and the trust chain, and that time is correct.',
+     search='vCenter certificate expired ssl handshake failed')
+rule('esx.auth', 'Auth: repeated authentication failures / lockout', 'esxi', 'low', ['auth'],
+     'auth', r'Authentication failure|Failed password|account .{0,30}locked|Lockout|Access denied for user|pam_.*(?:fail|deny)',
+     'Authentication failures on the host; check lockdown mode, AD join and brute-force attempts.',
+     search='ESXi authentication failure account locked')
+
+# ---------------- vCenter ----------------
+rule('vc.503', 'vCenter: HTTP 503 / no healthy upstream', 'vcenter', 'critical', ['services', 'auth', 'upgrade'],
+     'upstream', r'no healthy upstream|upstream connect error|503 Service Unavailable|HTTP/1\.[01]" 503',
+     'The reverse proxy has no healthy backend. Check which service is down (service-control --status --all), vpxd/vsphere-ui, disk space and certificates.',
+     search='vCenter no healthy upstream 503')
+rule('vc.vpxd_crash', 'vCenter: vpxd crash / panic / backtrace', 'vcenter', 'critical', ['crash', 'services'],
+     'backtrace', r'Panic:|PANIC|Backtrace:|Core dump|core dumped|received signal SIG(?:SEGV|ABRT)|Assert(?:ion)? failed',
+     'vpxd terminated abnormally. Preserve /var/core, review the backtrace and the last operations before the crash; check DB and memory.',
+     search='vpxd crash backtrace core dump', files=r'vpxd|vmware-vpx|core|vmon|vpxd-svcs')
+rule('vc.db', 'vCenter: database connectivity / capacity problem', 'vcenter', 'critical', ['database', 'disk-space', 'services'],
+     'connect', r'could not connect to server|too many (?:connections|clients)|remaining connection slots|ODBC error|database .{0,30}(?:unreachable|unavailable|full)|connection to (?:the )?database.{0,30}(?:lost|fail)|FATAL:\s+(?:sorry|terminating|the database system)|PANIC:\s+could not write|could not extend file',
+     'Embedded PostgreSQL unreachable or out of connections/space. Check vmware-vpostgres service, /storage/db and /storage/seat usage and max_connections.',
+     search='vCenter database VCDB connection failure vpostgres')
+rule('vc.host_disc', 'vCenter: ESXi host disconnected / not responding', 'vcenter', 'high', ['host-connection', 'network'],
+     'host', r'Host .{0,80}(?:is not responding|disconnected|got disconnected)|HostNotResponding|Cannot (?:connect|contact) (?:to )?host|ESX unresponsive|HostCommunication.{0,40}(?:error|fail)|Failed to connect to (?:host|ESX)|host (?:is )?unreachable',
+     'vCenter lost management connection to a host. Check the host-side hostd/vpxa, management network, DNS and port 443/902.',
+     search='ESXi host disconnected from vCenter not responding')
+rule('vc.sso', 'SSO/STS: authentication or token failures', 'vcenter', 'high', ['auth', 'services', 'certificate'],
+     'sso', r'(?:sts|sso|vmdird|lookupsvc|IdentityManager).{0,120}(?:fail|invalid|exception|denied|unable)|Invalid credentials|InvalidCredentials|Unable to authenticate|SAML token.{0,40}(?:invalid|expired)|Failed to (?:acquire|validate) (?:a )?token|Authentication failed',
+     'Login/token problem. Check STS signing certificate validity, identity source reachability (AD/LDAP), time sync and vmdird health.',
+     search='vCenter SSO login fails STS invalid credentials')
+rule('vc.ls_client', 'vCenter: Lookup Service client adapter exception', 'vcenter', 'high', ['services', 'upgrade'],
+     'ls client', r'Caught exception while creating LS client adapter',
+     'Seen in the supplied TDLog sample linked to the KB below (vpxd cannot reach the Lookup Service, e.g. during upgrade or after cert/host-name changes).',
+     kb='80867', search='vpxd Caught exception while creating LS client adapter')
+rule('vc.service_down', 'vCenter: service failed to start / exited', 'vcenter', 'high', ['services'],
+     'service', r'service .{0,60}(?:failed to start|exited|not running|stopped unexpectedly|crashed)|vmon.{0,60}(?:fail|restart|unhealthy)|Failed to start .{0,40}service|Health check .{0,40}fail',
+     'A vCenter service is flapping or down. Run service-control --status --all and review the service-specific log.',
+     search='vCenter service fails to start vmon')
+rule('vc.oom_kill', 'vCenter: OOM killer / low memory', 'vcenter', 'high', ['memory', 'crash'],
+     'memory', r'Out of memory: Kill(?:ed)? process|oom-killer|java\.lang\.OutOfMemoryError|OutOfMemoryError',
+     'Appliance ran out of memory. Review service heap sizes, VCSA memory sizing and which process was killed.',
+     search='VCSA out of memory killer java OutOfMemoryError')
+rule('vc.replication', 'vCenter: vmdir/ELM replication problem', 'vcenter', 'high', ['auth', 'database'],
+     'replic', r'replication.{0,80}(?:fail|error|partner|behind|unable)|vmdir.{0,60}(?:unable|error|fail)|Partner .{0,40}(?:down|unreachable)',
+     'Linked-mode/PSC replication issue. Check partner reachability and replication status with vdcrepadmin.',
+     search='vCenter vmdir replication failure linked mode')
+rule('vc.drs_ha', 'vCenter: DRS / HA configuration or runtime error', 'vcenter', 'medium', ['ha', 'vm'],
+     'drs', r'DRS.{0,60}(?:fail|error|unable)|HA.{0,40}(?:configuration failed|agent .{0,30}(?:fail|unreachable)|reconfigure.{0,20}fail)',
+     'Cluster service reported errors; check cluster events and host reachability.',
+     search='vSphere DRS HA configuration error')
+rule('vc.task_fail', 'vCenter: VM operation / task failures', 'vcenter', 'low', ['vm'],
+     'task', r'Task .{0,60}(?:failed|error)|PowerOn.{0,30}fail|Failed to (?:power on|clone|relocate|deploy)|InsufficientResources|NoCompatibleHost',
+     'Individual task failures. Useful when the customer issue is about a specific operation (power on, clone, deploy).',
+     search='vCenter task failed insufficient resources')
+rule('vc.acl_legacy', 'Security advisory: vmdird ACL MODE Legacy', 'vcenter', 'low', ['auth'],
+     'acl mode', r'ACL MODE: Legacy',
+     'Informational advisory reported by TDLog (VMSA-2020-0006 / CVE-2020-3952).',
+     kb='78543')
+
+BY_ID = {r['id']: r for r in R}
+
+# Prefilter keyword lists ('|' = any-of). Every regex alternative must contain one of these.
+_KW = {
+ 'esx.psod': 'bluescreen|psod|panic:|exception |#pf|#gp',
+ 'esx.mce': 'machine check|uncorrectable|hardware error',
+ 'esx.apd': 'paths down|apd|permanently inaccessible|pdl|lost access|inaccessible|blocked',
+ 'esx.scsi_sense': 'scsideviceio',
+ 'esx.latency': 'deteriorated|latency increased',
+ 'esx.vmfs_lock': 'lock|heartbeat|hb at offset|reservation',
+ 'esx.nfs': 'nfs',
+ 'esx.nic_down': 'link|uplink|redundancy|connectivity',
+ 'esx.nic_hang': 'timeout|watchdog|hang|reset|i40e|ixgben|bnxtnet|qedentv|nmlx5|igbn|ntg3',
+ 'esx.hostd': 'hostd',
+ 'esx.vpxa': 'vpxa|heartbeat',
+ 'esx.fdm': 'fdm|isolated|isolation|ha agent',
+ 'esx.vsan': 'vsan|lsom|dom|cmmds|clom|plog',
+ 'esx.oom': 'memory|heap|allocate|oom',
+ 'esx.ramdisk': 'space|ramdisk|inode|file system',
+ 'esx.ntp': 'ntp|clock|time ',
+ 'esx.vmx_crash': 'vmx|signal',
+ 'esx.snapshot': 'consolidat|snapshot|lock',
+ 'esx.vmotion': 'vmotion|migrat|waiting for data',
+ 'esx.dns': 'resol|name or service|getaddrinfo|nodename|dns',
+ 'esx.cert': 'certificate|ssl|verify|local issuer',
+ 'esx.auth': 'authentication|password|locked|lockout|access denied|pam_',
+ 'vc.503': 'upstream|503',
+ 'vc.vpxd_crash': 'panic|backtrace|core dump|core dumped|signal sig|assert',
+ 'vc.db': 'connect|connections|clients|slots|odbc|database|fatal|panic|extend file',
+ 'vc.host_disc': 'host|esx',
+ 'vc.sso': 'sts|sso|vmdird|lookupsvc|identitymanager|credentials|authenticate|saml|token|authentication',
+ 'vc.ls_client': 'ls client',
+ 'vc.service_down': 'service|vmon|health check',
+ 'vc.oom_kill': 'out of memory|oom|outofmemory',
+ 'vc.replication': 'replic|vmdir|partner',
+ 'vc.drs_ha': 'drs|ha',
+ 'vc.task_fail': 'task|poweron|failed to|insufficient|nocompatible',
+ 'vc.acl_legacy': 'acl mode',
+}
+for _r in R:
+    _r['kws'] = tuple(_KW[_r['id']].split('|'))
+    _r['any_level'] = _r['id'] in ('vc.acl_legacy',)
