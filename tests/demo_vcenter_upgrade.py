@@ -66,7 +66,7 @@ OLD = [
 
 SCENARIO = dict(name='vcsa_upgrade_failed', kind='vcenter',
                 issue='vCenter upgrade from 7.0 U3 to 8.0 U3 failed in stage 2 at import data; customer reverted to the old version',
-                expect=['esx.ramdisk'], lines=LINES + OLD, anchor_off=0, min_rank=3)
+                expect=['vc.disk_full', 'vc.upg_sizing', 'vc.upg_fail'], lines=LINES + OLD, anchor_off=0, min_rank=3)
 
 
 def main(out):

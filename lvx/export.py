@@ -27,6 +27,10 @@ def to_markdown(res):
         kb = ' · KB %s' % f['kb'] if f.get('kb') else ''
         L += ['', '### %d. %s  `score %s · %s · %s`%s' % (i, f['title'], f['score'], f['confidence'], f['severity'], kb),
               '- %s occurrences, first %s, last %s' % (f['count'], f['first_seen'], f['last_seen'])]
+        if f.get('root_of'):
+            L.append('- _Earlier warning that likely explains:_ %s' % f['root_of'])
+        if f.get('symptom_of'):
+            L.append('- _Likely a downstream symptom of:_ %s' % f['symptom_of'])
         if f.get('advice'):
             L.append('- **Next step:** %s' % f['advice'])
         if f.get('search'):
@@ -68,6 +72,10 @@ def to_html(res):
                      % (e(cls), i, e(f['title']), f['score'], e(f['confidence']),
                         '<span class="b">KB %s</span>' % e(str(f['kb'])) if f.get('kb') else ''))
         parts.append('<br>%s occurrences &middot; first %s &middot; last %s' % (f['count'], e(str(f['first_seen'])), e(str(f['last_seen']))))
+        if f.get('root_of'):
+            parts.append('<br><i>Earlier warning that likely explains: %s</i>' % e(f['root_of']))
+        if f.get('symptom_of'):
+            parts.append('<br><i>Likely a downstream symptom of: %s</i>' % e(f['symptom_of']))
         if f.get('advice'):
             parts.append('<br><b>Next step:</b> %s' % e(f['advice']))
         for s in f['samples'][:3]:

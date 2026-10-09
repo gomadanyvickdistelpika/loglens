@@ -248,7 +248,7 @@ class Analyzer:
             except Exception as ex:
                 self.skipped.append((e['path'], 'report: %s' % ex))
         self.progress(0.95, 'Ranking')
-        out = self._build(reps, cand)
+        out = self._build(reps, cand, files)
         out['stats']['seconds'] = round(time.time() - t0, 2)
         self.progress(1.0, 'Done')
         return out
@@ -384,6 +384,45 @@ class Analyzer:
             f = self.generic[key] = Finding(None, key)
         self._touch(f, rel, ts, line, lineno, level, ctx, True, key)
 
+
+    # ---- point-in-time command output (df/vdf): not time-windowed, shown as supporting evidence
+    _DF_LINE = re.compile(r'(\d{2,3})%\s+(/\S*)\s*$')
+    _DF_NAME = re.compile(r'(?:^|/)(?:df|vdf|diskfree|disk_?free|disk_?space)[^/]*$', re.I)
+    _DF_SKIP = re.compile(r'^/(?:dev|sys|proc|run|snap|boot/efi)(?:/|$)')
+
+    def _snapshots(self, files):
+        found = []
+        for e in files:
+            rel = e['path']
+            if not self._DF_NAME.search(rel) or e.get('size', 0) > 2_000_000:
+                continue
+            try:
+                with open(self.bundle.resolve(rel), 'r', encoding='utf-8', errors='replace') as fh:
+                    for n, line in enumerate(fh, 1):
+                        m = self._DF_LINE.search(line)
+                        if m and int(m.group(1)) >= 95 and not self._DF_SKIP.match(m.group(2)):
+                            found.append((rel, n, line.rstrip('\n')[:300], int(m.group(1)), m.group(2)))
+            except OSError:
+                continue
+        return found
+
+    def _snapshot_findings(self, found, corroborated):
+        if not found:
+            return []
+        rel = 25 if 'disk-space' in self.topics else 0
+        score = round(SEV_BASE['high'] + 20 + (10 if corroborated else 0) + rel, 1)
+        mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in found}))
+        return [dict(
+            id='snap.fs_full', title='Filesystem at/over 95%% in df output: %s' % mounts, source='command output', kind='snapshot',
+            severity='high', score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
+            count=len(found), strong=len(found), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
+            nearest_to_anchor_s=None, topics=['disk-space'],
+            advice='Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full /storage/seat, /storage/db or / stops vpostgres/vpxd and aborts upgrade imports; grow the disk or purge, then retry.',
+            kb=None, search='VCSA /storage/seat full increase VMDK',
+            files=[dict(file=r, count=1) for r in sorted({f[0] for f in found})][:5], variants=[],
+            samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in found[:3]],
+            spark=[0] * self.nb, _first=0)]
+
     # ---- scoring
     def _relevance(self, topics, text):
         rel = 0.0
@@ -444,7 +483,31 @@ class Analyzer:
             spark=[f.buckets.get(i, 0) for i in range(self.nb)],
             _first=f.first or 0)
 
-    def _build(self, reps, cand):
+
+    @staticmethod
+    def _link_symptoms(items):
+        """A downstream symptom (503, service down) that starts shortly AFTER a stronger cause ranks just below it."""
+        by_id = {r['id']: r for r in R}
+        for d in items:                       # early warning that explains a later failure ranks above it
+            rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
+            if rf and d['_first']:
+                later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] > d['_first']]
+                if later:
+                    t = max(later, key=lambda t: t['score'])
+                    d['score'] = round(max(d['score'], t['score'] + 1.5), 1)
+                    d['root_of'] = t['title']
+        causes = [d for d in items if d['kind'] == 'rule' and not by_id.get(d['id'], {}).get('symptom')
+                  and d['severity'] in ('critical', 'high') and d['score'] >= 40 and not d['chronic'] and d['_first']]
+        for s in items:
+            if s['kind'] != 'rule' or not by_id.get(s['id'], {}).get('symptom') or not s['_first']:
+                continue
+            pre = [c for c in causes if 0 <= s['_first'] - c['_first'] <= 1800]
+            if pre:
+                c = max(pre, key=lambda c: c['score'])
+                s['score'] = round(min(s['score'], c['score'] - 1), 1)
+                s['symptom_of'] = c['title']
+
+    def _build(self, reps, cand, files=()):
         items, advisories = [], []
         for f in self.findings.values():
             d = self._finding_dict(f)
@@ -459,6 +522,9 @@ class Analyzer:
         keep_gen = [g for g in gen if g['severity'] in ('critical', 'error')][:15] + \
                    [g for g in gen if g['severity'] == 'warning'][:10]
         items += keep_gen
+        corroborated = any('disk-space' in (d.get('topics') or []) and d['kind'] == 'rule' for d in items)
+        items += self._snapshot_findings(self._snapshots(files), corroborated)
+        self._link_symptoms(items)
         # reports
         report_out, rep_items = [], []
         for rep in reps:

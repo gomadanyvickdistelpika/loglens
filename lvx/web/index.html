@@ -192,7 +192,7 @@ function renderFind() {
   r.findings.forEach((f, i) => {
     h += '<div class="card ' + esc(f.severity) + '"><b>' + (i + 1) + '. ' + esc(f.title) + '</b>'
       + '<span class="badge ' + (f.confidence === 'high' ? 'hi' : '') + '">' + esc(f.confidence) + ' &middot; score ' + f.score + '</span><span class="badge">' + esc(f.severity) + '</span>'
-      + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '') + (f.chronic ? '<span class="badge">chronic background</span>' : '') + (f.relevance >= 25 ? '<span class="badge hi">matches your issue</span>' : '')
+      + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '') + (f.chronic ? '<span class="badge">chronic background</span>' : '') + (f.root_of ? '<span class="badge hi">likely root cause of: ' + esc(f.root_of) + '</span>' : '') + (f.symptom_of ? '<span class="badge">likely symptom of: ' + esc(f.symptom_of) + '</span>' : '') + (f.kind === 'snapshot' ? '<span class="badge">command output</span>' : '') + (f.relevance >= 25 ? '<span class="badge hi">matches your issue</span>' : '')
       + '<div class="meta">' + f.count.toLocaleString() + ' occurrences &middot; first ' + esc(f.first_seen) + ' &middot; last ' + esc(f.last_seen) + ' &middot; ' + f.files.map(x => esc(x.file) + ' (' + x.count + ')').join(', ') + '</div>';
     h += spark(f.spark);
     if (f.advice) h += '<div style="margin:6px 0"><b>Next step:</b> ' + esc(f.advice) + '</div>';

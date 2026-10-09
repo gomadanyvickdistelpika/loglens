@@ -6,10 +6,12 @@ import re
 R = []
 
 
-def rule(id, title, product, severity, topics, kw, pattern, advice, kb=None, search=None, files=None):
+def rule(id, title, product, severity, topics, kw, pattern, advice, kb=None, search=None, files=None, symptom=False, root_for=()):
+    """symptom=True marks a downstream effect or locator (503, 'stage failed'): ranked just below an earlier, likelier cause.
+    root_for lists rule ids this finding is an early warning of: if one of them follows later, this ranks above it."""
     R.append(dict(id=id, title=title, product=product, severity=severity, topics=topics,
                   kw=kw.lower(), rx=re.compile(pattern, re.I), advice=advice, kb=kb,
-                  search=search or title, files=re.compile(files, re.I) if files else None))
+                  search=search or title, files=re.compile(files, re.I) if files else None, symptom=symptom, root_for=tuple(root_for)))
 
 
 # ---------------- ESXi ----------------
@@ -69,7 +71,7 @@ rule('esx.oom', 'Memory: out of memory / heap exhaustion', 'esxi', 'high', ['mem
      'memory', r'out of memory|Cannot allocate memory|heap .{0,40}(?:out of space|exhausted|full)|Failed to allocate|memory pool .{0,30}exhaust|oom-?kill',
      'Resource exhaustion on the host. Check host memory pressure, swap, heap/pool sizes and leaks (hostd/vpxa memory).',
      search='ESXi out of memory heap exhausted')
-rule('esx.ramdisk', 'Disk space: ramdisk/filesystem full', 'both', 'high', ['disk-space'],
+rule('esx.ramdisk', 'Disk space: ramdisk/filesystem full', 'esxi', 'high', ['disk-space'],
      'space', r'No space left on device|ramdisk .{0,30}(?:full|out of)|inode.{0,20}(?:exhaust|full|out)|file system.{0,30}full',
      'A filesystem/ramdisk is full. Find large files (du/vdf) and logs; full ramdisks break hostd/vpxa and logging.',
      search='ESXi ramdisk full no space left on device')
@@ -106,7 +108,7 @@ rule('esx.auth', 'Auth: repeated authentication failures / lockout', 'esxi', 'lo
 rule('vc.503', 'vCenter: HTTP 503 / no healthy upstream', 'vcenter', 'critical', ['services', 'auth', 'upgrade'],
      'upstream', r'no healthy upstream|upstream connect error|503 Service Unavailable|HTTP/1\.[01]" 503',
      'The reverse proxy has no healthy backend. Check which service is down (service-control --status --all), vpxd/vsphere-ui, disk space and certificates.',
-     search='vCenter no healthy upstream 503')
+     search='vCenter no healthy upstream 503', symptom=True)
 rule('vc.vpxd_crash', 'vCenter: vpxd crash / panic / backtrace', 'vcenter', 'critical', ['crash', 'services'],
      'backtrace', r'Panic:|PANIC|Backtrace:|Core dump|core dumped|received signal SIG(?:SEGV|ABRT)|Assert(?:ion)? failed',
      'vpxd terminated abnormally. Preserve /var/core, review the backtrace and the last operations before the crash; check DB and memory.',
@@ -127,10 +129,22 @@ rule('vc.ls_client', 'vCenter: Lookup Service client adapter exception', 'vcente
      'ls client', r'Caught exception while creating LS client adapter',
      'Seen in the supplied TDLog sample linked to the KB below (vpxd cannot reach the Lookup Service, e.g. during upgrade or after cert/host-name changes).',
      kb='80867', search='vpxd Caught exception while creating LS client adapter')
+rule('vc.disk_full', 'vCenter: appliance partition full (/storage/*)', 'vcenter', 'high', ['disk-space', 'database', 'services', 'upgrade'],
+     'space', r'No space left on device|DiskFull|ENOSPC|disk (?:is )?full|file system.{0,30}full|/storage/\w+.{0,40}(?:\b100%|\bfull\b)',
+     'A VCSA partition is full. Run df -h and find which /storage/* volume (seat = stats/events/tasks, db, log, core, archive) is at 100%; grow the VMDK/partition (KB: "Increase disk space on VCSA") or purge. Full /storage/seat or /storage/db stops vpostgres and vpxd, and also aborts upgrade imports.',
+     search='VCSA /storage/seat full no space left on device increase VMDK')
+rule('vc.upg_fail', 'vCenter upgrade: stage / firstboot failure', 'vcenter', 'high', ['upgrade', 'services'],
+     'stage|firstboot|first boot|upgrade|import', r'Stage \d+ (?:failed|error)|(?:firstboot|first boot|vpxd_firstboot).{0,80}(?:exited with code [1-9]|failed|error)|upgrade (?:failed|aborted)|Failed to import (?:configuration )?data|Import (?:of )?\w+ data failed',
+     'Marks WHERE the upgrade died (stage/step). The cause is usually the earliest ERROR just before it (database/disk, certificate, Lookup Service, DNS, service start). Read the firstboot stderr/stdout logs and /var/log/vmware/upgrade/ around this time.',
+     search='VCSA upgrade fails stage 2 import data firstboot vpxd_firstboot', symptom=True)
+rule('vc.upg_sizing', 'vCenter upgrade: target size / storage too small (pre-check warning)', 'vcenter', 'high', ['upgrade', 'disk-space'],
+     'estimated|requirement|required|insufficient|not enough', r'(?:/storage/\w+|storage|disk|partition)\b.{0,100}(?:estimated|requirement|required|needs?)\b.{0,60}\d+\s*(?:GB|TB)|(?:insufficient|not enough) (?:free )?(?:disk |storage )?space',
+     'The upgrade pre-check warned the target appliance disks are smaller than the data being imported. Redeploy the target with a larger deployment/storage size, or choose not to import events/tasks/performance data (Stage 1 option), then retry. If the warning was acknowledged and Stage 2 later hit disk-full, this is the root cause.',
+     search='VCSA upgrade pre-check insufficient storage size SEAT data import', root_for=('vc.disk_full', 'vc.db'))
 rule('vc.service_down', 'vCenter: service failed to start / exited', 'vcenter', 'high', ['services'],
      'service', r'service .{0,60}(?:failed to start|exited|not running|stopped unexpectedly|crashed)|vmon.{0,60}(?:fail|restart|unhealthy)|Failed to start .{0,40}service|Health check .{0,40}fail',
      'A vCenter service is flapping or down. Run service-control --status --all and review the service-specific log.',
-     search='vCenter service fails to start vmon')
+     search='vCenter service fails to start vmon', symptom=True)
 rule('vc.oom_kill', 'vCenter: OOM killer / low memory', 'vcenter', 'high', ['memory', 'crash'],
      'memory', r'Out of memory: Kill(?:ed)? process|oom-killer|java\.lang\.OutOfMemoryError|OutOfMemoryError',
      'Appliance ran out of memory. Review service heap sizes, VCSA memory sizing and which process was killed.',
@@ -184,6 +198,9 @@ _KW = {
  'vc.host_disc': 'host|esx',
  'vc.sso': 'sts|sso|vmdird|lookupsvc|identitymanager|credentials|authenticate|saml|token|authentication',
  'vc.ls_client': 'ls client',
+ 'vc.disk_full': 'space|diskfull|enospc|full',
+ 'vc.upg_fail': 'stage|firstboot|first boot|upgrade|import',
+ 'vc.upg_sizing': 'estimated|requirement|required|insufficient|not enough',
  'vc.service_down': 'service|vmon|health check',
  'vc.oom_kill': 'out of memory|oom|outofmemory',
  'vc.replication': 'replic|vmdir|partner',

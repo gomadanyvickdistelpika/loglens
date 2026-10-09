@@ -231,6 +231,48 @@ class NoiseTests(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class UpgradeFailureRanking(unittest.TestCase):
+    """Failed VCSA upgrade (synthetic): root cause must outrank downstream symptoms; old decoys excluded."""
+
+    @classmethod
+    def setUpClass(cls):
+        import demo_vcenter_upgrade as demo
+        cls.tmp = tempfile.mkdtemp(prefix='lvx_upg_')
+        demo.main(cls.tmp)
+        b = open_bundle('u', os.path.join(cls.tmp, 'vcsa-upgrade-failed.tgz'))
+        cls.res = Analyzer(b, issue=demo.SCENARIO['issue'], anchor=demo.FAIL, before_s=86400, after_s=3600).run()
+        b.close()
+        cls.rank = {f['id']: i for i, f in enumerate(cls.res['findings'])}
+        cls.by = {f['id']: f for f in cls.res['findings']}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_root_cause_first(self):
+        self.assertEqual(self.res['findings'][0]['id'], 'vc.upg_sizing')
+
+    def test_symptoms_below_cause(self):
+        for sym in ('vc.503', 'vc.upg_fail'):
+            self.assertGreater(self.rank[sym], self.rank['vc.disk_full'])
+            self.assertTrue(self.by[sym].get('symptom_of'))
+
+    def test_old_decoys_excluded(self):
+        self.assertEqual(self.by['vc.503']['count'], 1)
+
+    def test_df_snapshot_reported(self):
+        self.assertIn('snap.fs_full', self.by)
+        self.assertIn('/storage/seat', self.by['snap.fs_full']['title'])
+
+    def test_no_esxi_wording_for_vcenter_disk(self):
+        self.assertNotIn('ESXi', self.by['vc.disk_full']['search'])
+
+    def test_markdown_export_mentions_links(self):
+        md = export.to_markdown(self.res)
+        self.assertIn('downstream symptom', md)
+        self.assertIn('Earlier warning', md)
+
+
 class ViewerTests(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix='lvv_')
@@ -392,7 +434,9 @@ class ApiTests(unittest.TestCase):
                 break
             time.sleep(0.2)
         self.assertEqual(j['state'], 'done', j)
-        self.assertEqual(j['result']['findings'][0]['id'], 'vc.503')
+        top = [f['id'] for f in j['result']['findings'][:2]]
+        self.assertEqual(top, ['vc.ls_client', 'vc.503'])      # earlier LS client failure ranks above its 503 symptom
+        self.assertTrue(j['result']['findings'][1].get('symptom_of'))
         for fmt, needle in (('md', b'Ranked findings'), ('html', b'<h1>'), ('json', b'"findings"')):
             s, b = self.req('GET', '/api/report/%s.%s' % (jid, fmt))
             self.assertEqual(s, 200)
