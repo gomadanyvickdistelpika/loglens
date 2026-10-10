@@ -80,3 +80,7 @@ across dir/zip/tgz/nested-archive formats; passes at >= 95%).
   sample reports (80867, 78543); other findings carry a KB *search phrase* instead of a guess.
 * Accuracy numbers come from synthetic bundles; validate on real, sanitised bundles and send me misses.
 * Syslog-style lines without a year assume the year of the newest log. Naive times are UTC.
+
+## Verify findings against the raw log
+
+Every finding in the web UI has **Confirm / Reject / Unsure** buttons, an optional note, and **Show log context (+-4 lines)**, which pulls the matching lines straight from the bundle file. Verdicts are kept in your browser and included in the Markdown/HTML/JSON exports ("Reviewer verdict"). API: `GET /api/evidence?job=&finding=&ctx=`, `POST /api/jobs/<id>/verdicts`.

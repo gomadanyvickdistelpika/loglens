@@ -65,7 +65,7 @@ def _template_entries(rule_id, text):
             continue
         if t.get('match') and not re.search(t['match'], text or '', re.I):
             continue
-        out.append(dict(topic='Resolved-case template %s: %s' % (t['id'], t['title']), precision='case-template', cause=t.get('cause', ''),
+        out.append(dict(topic='%s %s: %s' % ('Scenario template' if str(t.get('notes', '')).startswith('SYNTHETIC SCENARIO') else 'Resolved-case template', t['id'], t['title']), precision='case-template', synthetic=str(t.get('notes', '')).startswith('SYNTHETIC SCENARIO'), cause=t.get('cause', ''),
                         resolution=t.get('resolution', []), notes=t.get('notes', ''), basis='case',
                         articles=[dict(id=k['id'].replace('legacy:', 'legacy '), title=k['title'], url=article_url(k['id'])) for k in t.get('kb', []) if k.get('role') != 'noise'],
                         template=t['id'], evidence=t.get('evidence', '')))

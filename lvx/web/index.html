@@ -37,6 +37,12 @@ button:disabled{opacity:.5;cursor:default}
 .card.stale{opacity:.55}
 .badge{display:inline-block;padding:1px 8px;border-radius:10px;background:var(--code);border:1px solid var(--line);font-size:11px;margin-left:6px;color:var(--mute)}
 .badge.hi{color:var(--ok);border-color:var(--ok)}
+.vd{margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:6px}.vd button{margin-right:6px;padding:3px 10px;font-size:12px}
+.vd button.on.confirm{background:var(--ok);color:#fff;border-color:var(--ok)}.vd button.on.reject{background:var(--crit);color:#fff;border-color:var(--crit)}.vd button.on.unsure{background:var(--med);color:#fff;border-color:var(--med)}
+.vd input.note{width:min(520px,100%);margin-top:6px}.evc{margin:6px 0;border:1px solid var(--line);border-radius:6px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace}
+.evc .r{display:flex;gap:8px;padding:0 8px;white-space:pre-wrap;word-break:break-all}.evc .r.hit{background:var(--hl);font-weight:600}.evc .r .n{color:var(--mute);min-width:52px;text-align:right;flex:none}
+.evc .hd{padding:3px 8px;background:var(--code);border-bottom:1px solid var(--line);font-size:11px;color:var(--mute)}
+
 .meta{color:var(--mute);font-size:12px;margin:3px 0}
 pre.ev{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin:6px 0;overflow:auto;font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
 a.lnk{color:var(--acc);cursor:pointer;font-size:12px}
@@ -117,7 +123,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const S = {bundle: null, files: [], result: null, job: null, cur: null, matches: [], mi: -1, offset: 0, total: 0};
+const S = {verdicts: {}, bundle: null, files: [], result: null, job: null, cur: null, matches: [], mi: -1, offset: 0, total: 0};
 let TOKEN = new URLSearchParams(location.search).get('token') || '';
 async function api(path, opt = {}) {
   opt.headers = Object.assign({}, opt.headers || {}); if (TOKEN) opt.headers.Authorization = 'Bearer ' + TOKEN;
@@ -157,11 +163,11 @@ const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel
 
 function kbBlock(r) {
   if (!r) return '';
-  if (r.status === 'none') return '<div class="kbx none"><b>Broadcom KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
-  let h = '<div class="kbx"><b>Broadcom KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  if (r.status === 'none') return '<div class="kbx none"><b>' + 'Broadcom' + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>' + 'Broadcom' + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
-    h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? ' <span class="badge hi">from a resolved support case (anonymised)</span>' : '') + '<div>'
-      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No Broadcom KB was cited in the case.</span>') + '</div>';
+    h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? (en.synthetic ? ' <span class="badge">synthetic scenario - not a resolved case</span>' : ' <span class="badge hi">from a resolved support case (anonymised)</span>') : '') + '<div>'
+      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + 'KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
     if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
     h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
       : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';
@@ -193,7 +199,53 @@ async function poll() {
   if (j.state === 'running') return setTimeout(poll, 400);
   $('#go').disabled = false; $('#prog').hidden = true;
   if (j.state === 'error') return fail('#pmsg', j.error);
-  S.result = j.result; $('#pmsg').textContent = 'Done in ' + j.result.stats.seconds + 's'; render(); tab('find');
+  S.result = j.result; $('#pmsg').textContent = 'Done in ' + j.result.stats.seconds + 's'; loadVerdicts(); render(); tab('find'); if (Object.keys(S.verdicts).length) saveVerdicts();
+}
+
+
+// ---------- reviewer verdicts + raw-log evidence 
+const VL = {confirm: 'Confirm', reject: 'Reject', unsure: 'Unsure'};
+function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + r.window.anchor; }
+function loadVerdicts() { try { S.verdicts = JSON.parse(localStorage.getItem(vkey()) || '{}') || {}; } catch (e) { S.verdicts = {}; } }
+async function saveVerdicts() {
+  try { localStorage.setItem(vkey(), JSON.stringify(S.verdicts)); } catch (e) { /* private mode: server copy still kept */ }
+  try { await api('/api/jobs/' + S.job + '/verdicts', {method: 'POST', body: JSON.stringify({verdicts: S.verdicts})}); } catch (e) { /* export just shows not reviewed */ }
+  updateReviewed();
+}
+function updateReviewed() {
+  const el = $('#reviewed'); if (!el || !S.result) return; const v = S.verdicts || {}; const ids = S.result.findings.map(f => f.id);
+  const c = k => ids.filter(i => v[i] && v[i].v === k).length;
+  el.textContent = 'Reviewed ' + (c('confirm') + c('reject') + c('unsure')) + ' of ' + ids.length + ' findings: ' + c('confirm') + ' confirmed, ' + c('reject') + ' rejected, ' + c('unsure') + ' unsure';
+}
+function verdictBlock(f, i) {
+  const v = (S.verdicts || {})[f.id] || {};
+  return '<div class="vd" data-vi="' + i + '"><b>Verify against the raw log:</b> '
+    + Object.keys(VL).map(k => '<button class="' + k + (v.v === k ? ' on' : '') + '" data-vb="' + k + '" aria-pressed="' + (v.v === k) + '">' + VL[k] + '</button>').join('')
+    + '<button data-ev="' + i + '">Show log context (&plusmn;4 lines)</button><br><input class="note" type="text" maxlength="2000" placeholder="optional note (kept in this browser and in the exported report)" value="' + esc(v.note || '') + '"'
+    + '><div class="evbox" data-evbox="' + i + '"></div></div>';
+}
+function wireVerdicts(root) {
+  root.querySelectorAll('.vd').forEach(box => {
+    const f = S.result.findings[+box.dataset.vi];
+    const set = (k, note) => { const cur = S.verdicts[f.id] || {}; const nv = k === undefined ? cur.v : k;
+      if (nv) S.verdicts[f.id] = {v: nv, note: note !== undefined ? note : (cur.note || '')}; else delete S.verdicts[f.id]; saveVerdicts(); };
+    box.querySelectorAll('button[data-vb]').forEach(b => b.onclick = () => {
+      const was = (S.verdicts[f.id] || {}).v === b.dataset.vb; set(was ? null : b.dataset.vb);
+      box.querySelectorAll('button[data-vb]').forEach(x => { const on = !was && x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); }); });
+    let t; box.querySelector('input.note').oninput = e => { clearTimeout(t); const val = e.target.value; t = setTimeout(() => { if (S.verdicts[f.id]) set(undefined, val); else if (val) set('unsure', val), box.querySelector('button[data-vb=unsure]').classList.add('on'); }, 300); };
+    box.querySelector('button[data-ev]').onclick = () => showEvidence(f, box.querySelector('.evbox'));
+  });
+}
+async function showEvidence(f, box) {
+  if (box.dataset.open === '1') { box.innerHTML = ''; box.dataset.open = ''; return; }
+  box.innerHTML = '<div class="meta">loading...</div>';
+  try {
+    const r = await api('/api/evidence?' + qs({job: S.job, finding: f.id, ctx: 4}));
+    const row = (l, hit) => '<div class="r' + (hit ? ' hit' : '') + '"><span class="n">' + l.n + '</span><span>' + esc(l.text) + '</span></div>';
+    box.innerHTML = r.samples.map(sm => '<div class="evc"><div class="hd">' + esc(sm.file) + ' &middot; line ' + sm.line + ' &middot; ' + esc(sm.ts || '') + ' &middot; <a class="lnk" data-f="' + esc(sm.file) + '" data-l="' + sm.line + '">open in viewer</a></div>'
+      + sm.before.map(l => row(l)).join('') + (sm.hit ? row(sm.hit, true) : row({n: sm.line, text: sm.text}, true)) + sm.after.map(l => row(l)).join('') + '</div>').join('') || '<div class="meta">no samples stored</div>';
+    box.dataset.open = '1'; box.querySelectorAll('a[data-f]').forEach(a => a.onclick = () => openFile(a.dataset.f, +a.dataset.l));
+  } catch (e) { box.innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
 }
 
 // ---------- results
@@ -204,7 +256,7 @@ function renderFind() {
     + '<b>Noise removed:</b> ' + (st.lines_outside_window || 0).toLocaleString() + ' lines outside the window (incl. ' + (st.errors_outside_window || 0).toLocaleString() + ' error lines), '
     + 'only ' + (st.lines_in_window || 0).toLocaleString() + ' of ' + (st.lines_total || 0).toLocaleString() + ' lines analysed in ' + (st.files_scanned || 0) + ' files.<br>'
     + (r.issue_topics.length ? '<span class="meta">Issue understood as: ' + esc(r.issue_topics.join(', ')) + '</span> &nbsp;' : '<span class="meta">No issue text: ranking by severity and proximity only.</span> &nbsp;')
-    + '<a class="lnk" href="/api/report/' + S.job + '.md">Markdown</a> &middot; <a class="lnk" href="/api/report/' + S.job + '.html">HTML</a> &middot; <a class="lnk" href="/api/report/' + S.job + '.json">JSON</a></div>';
+    + '<span id="reviewed" class="meta"></span> &nbsp;<a class="lnk" href="/api/report/' + S.job + '.md">Markdown</a> &middot; <a class="lnk" href="/api/report/' + S.job + '.html">HTML</a> &middot; <a class="lnk" href="/api/report/' + S.job + '.json">JSON</a></div>';
   if (!r.findings.length) h += '<div class="card">No significant findings inside this window. Check the incident time/timezone, widen the window, or lower the minimum level.</div>';
   r.findings.forEach((f, i) => {
     h += '<div class="card ' + esc(f.severity) + '"><b>' + (i + 1) + '. ' + esc(f.title) + '</b>'
@@ -215,18 +267,20 @@ function renderFind() {
     if (f.advice) h += '<div style="margin:6px 0"><b>Next step:</b> ' + esc(f.advice) + '</div>';
     if (f.search) h += '<div class="meta">KB search phrase: <code>' + esc(f.search) + '</code></div>';
     f.samples.slice(0, 3).forEach(s => { h += '<pre class="ev">' + (s.context || []).map(esc).join('\n') + (s.context && s.context.length ? '\n' : '') + '<b>' + esc(s.text) + '</b></pre><a class="lnk" data-f="' + esc(s.file) + '" data-l="' + s.line + '">open ' + esc(s.file) + ':' + s.line + ' in viewer</a> '; });
+    h += verdictBlock(f, i);
     h += kbBlock(f.kb_research);
     if (f.variants.length > 1) h += '<details><summary class="meta">' + f.variants.length + ' message variants</summary>' + f.variants.map(v => '<div class="meta">' + v.count + 'x ' + esc(v.message) + '</div>').join('') + '</details>';
     h += '</div>';
   });
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
-  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of Broadcom knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
+  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
   if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
     r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
       + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }
   $('#pane-find').innerHTML = h;
   $('#pane-find').querySelectorAll('a[data-f]').forEach(a => a.onclick = () => openFile(a.dataset.f, +a.dataset.l));
+  wireVerdicts($('#pane-find')); updateReviewed();
 }
 function spark(a) { const m = Math.max(1, ...a); const w = 3; let s = '<svg width="' + a.length * w + '" height="22" role="img" aria-label="occurrences over the window">';
   a.forEach((v, i) => { const hgt = Math.round(v / m * 20); if (v) s += '<rect x="' + i * w + '" y="' + (22 - hgt) + '" width="2" height="' + hgt + '" fill="currentColor" opacity=".55"/>'; }); return s + '</svg>'; }

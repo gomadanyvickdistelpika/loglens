@@ -105,6 +105,11 @@ def make_handler(state):
                     return self._view(qs)
                 if route == ('GET', '/api/find'):
                     return self._find(qs)
+                if route == ('GET', '/api/evidence'):
+                    return self._evidence(qs)
+                m = re.match(r'^/api/jobs/([\w-]+)/verdicts$', path)
+                if m and method == 'POST':
+                    return self._verdicts(m.group(1))
                 m = re.match(r'^/api/bundles/([\w-]+)/files$', path)
                 if m and method == 'GET':
                     b = self._bundle(m.group(1))
@@ -213,7 +218,7 @@ def make_handler(state):
             if before < 60 or before > 3650 * 86400 or after < 0:
                 raise ValueError('invalid window')
             jid = uuid.uuid4().hex[:12]
-            job = dict(id=jid, state='running', progress=0.0, message='Starting', result=None, error=None)
+            job = dict(id=jid, state='running', progress=0.0, message='Starting', result=None, error=None, bundle=b.id, verdicts={})
             state.jobs[jid] = job
 
             def prog(p, msg):
@@ -251,11 +256,50 @@ def make_handler(state):
             full = b.resolve(g('path'))
             _json(self, 200, viewer.find(full, g('q'), regex=g('regex') == '1', case=g('case') == '1'))
 
+        def _verdicts(self, jid):
+            body = self._body()               # always drain the request body, even when the job is unknown
+            j = state.jobs.get(jid)
+            if not j:
+                raise KeyError('unknown job')
+            vs = body.get('verdicts')
+            if not isinstance(vs, dict) or len(vs) > 2000:
+                raise ValueError('verdicts must be an object keyed by finding id')
+            clean = {}
+            for fid, v in vs.items():
+                if not isinstance(v, dict) or v.get('v') not in ('confirm', 'reject', 'unsure'):
+                    raise ValueError('verdict must be confirm, reject or unsure')
+                clean[str(fid)[:200]] = dict(v=v['v'], note=str(v.get('note') or '')[:2000])
+            j['verdicts'] = clean
+            _json(self, 200, {'ok': True, 'count': len(clean)})
+
+        def _evidence(self, qs):
+            """Raw log context for one finding: each stored sample with `ctx` lines before and after, straight from the bundle file."""
+            g = lambda k, d='': (qs.get(k) or [d])[0]
+            j = state.jobs.get(g('job'))
+            if not j or j['state'] != 'done':
+                raise KeyError('unknown or unfinished job')
+            res = j['result']
+            f = next((x for x in res['findings'] + res.get('advisories', []) if x['id'] == g('finding')), None)
+            if not f:
+                raise KeyError('unknown finding')
+            b = self._bundle(j['bundle'])
+            ctx = max(0, min(int(g('ctx', 4)), 50))
+            out = []
+            for sm in f['samples']:
+                full = b.resolve(sm['file'])
+                v = viewer.view(full, around=sm['line'], limit=2 * ctx + 1)
+                lines = v['lines']
+                out.append(dict(file=sm['file'], line=sm['line'], ts=sm['ts'], text=sm['text'],
+                                before=[x for x in lines if x['n'] < sm['line']][-ctx:] if ctx else [],
+                                hit=next((x for x in lines if x['n'] == sm['line']), None),
+                                after=[x for x in lines if x['n'] > sm['line']][:ctx]))
+            _json(self, 200, dict(finding=f['id'], title=f['title'], samples=out))
+
         def _report(self, jid, fmt):
             j = state.jobs.get(jid)
             if not j or j['state'] != 'done':
                 raise KeyError('report not ready')
-            res = j['result']
+            res = dict(j['result'], verdicts=j.get('verdicts') or {})
             body, ctype = {'md': (export.to_markdown(res), 'text/markdown; charset=utf-8'),
                            'json': (export.to_json(res), 'application/json; charset=utf-8'),
                            'html': (export.to_html(res), 'text/html; charset=utf-8')}[fmt]

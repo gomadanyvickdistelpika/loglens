@@ -3,8 +3,18 @@ import html
 import json
 
 
+VERDICT_LABEL = {'confirm': 'CONFIRMED against the raw log', 'reject': 'REJECTED (not a real issue)', 'unsure': 'UNSURE - needs more checking'}
+
+
+def _verdict(res, f):
+    return (res.get('verdicts') or {}).get(f['id'])
+
+
 def to_json(res):
-    return json.dumps(res, indent=2, default=str)
+    out = dict(res)
+    vs = res.get('verdicts') or {}
+    out['findings'] = [dict(f, verdict=vs.get(f['id'])) for f in res.get('findings', [])]
+    return json.dumps(out, indent=2, default=str)
 
 
 def _kb_md(r, indent='- '):
@@ -19,7 +29,7 @@ def _kb_md(r, indent='- '):
     L = [indent + '**Broadcom KB research** (%s)' % r['message']]
     for en in r['entries']:
         arts = '; '.join('[KB %s](%s) %s' % (a['id'], a['url'], a['title']) for a in en['articles'][:4])
-        L.append('  - **%s**%s: %s' % (en['topic'], (' _(related, matched by rule only)_' if en['precision'] == 'general' else ' _(from a resolved support case, anonymised)_' if en['precision'] == 'case-template' else ''), arts))
+        L.append('  - **%s**%s: %s' % (en['topic'], (' _(related, matched by rule only)_' if en['precision'] == 'general' else (' _(synthetic scenario - not a resolved case)_' if en.get('synthetic') else ' _(from a resolved support case, anonymised)_') if en['precision'] == 'case-template' else ''), arts))
         if en.get('cause'):
             L.append('    - Cause: %s' % en['cause'])
         if en.get('resolution'):
@@ -42,7 +52,7 @@ def _kb_html(r):
         return '<div class="kb"><b>Broadcom KB research:</b> %s%s</div>' % (e(r['message']), ' Manual search phrase: <code>%s</code>' % e(r['searched']) if r.get('searched') else '')
     h = ['<div class="kb"><b>Broadcom KB research</b> <small>(%s)</small>' % e(r['message'])]
     for en in r['entries']:
-        h.append('<div><b>%s</b>%s: %s' % (e(en['topic']), (' <i>(related, matched by rule only)</i>' if en['precision'] == 'general' else ' <i>(from a resolved support case, anonymised)</i>' if en['precision'] == 'case-template' else ''),
+        h.append('<div><b>%s</b>%s: %s' % (e(en['topic']), (' <i>(related, matched by rule only)</i>' if en['precision'] == 'general' else (' <i>(synthetic scenario - not a resolved case)</i>' if en.get('synthetic') else ' <i>(from a resolved support case, anonymised)</i>') if en['precision'] == 'case-template' else ''),
                                           '; '.join('<a href="%s">KB %s</a> %s' % (e(a['url']), e(a['id']), e(a['title'])) for a in en['articles'][:4])))
         if en.get('cause'):
             h.append('<br>Cause: %s' % e(en['cause']))
@@ -81,6 +91,8 @@ def to_markdown(res):
         kb = ' · KB %s' % f['kb'] if f.get('kb') else ''
         L += ['', '### %d. %s  `score %s · %s · %s`%s' % (i, f['title'], f['score'], f['confidence'], f['severity'], kb),
               '- %s occurrences, first %s, last %s' % (f['count'], f['first_seen'], f['last_seen'])]
+        v = _verdict(res, f)
+        L.append('- **Reviewer verdict:** %s%s' % (VERDICT_LABEL[v['v']] if v else 'not reviewed yet', (' - ' + v['note']) if v and v.get('note') else ''))
         if f.get('root_of'):
             L.append('- _Earlier warning that likely explains:_ %s' % f['root_of'])
         if f.get('symptom_of'):
@@ -132,6 +144,8 @@ def to_html(res):
                      % (e(cls), i, e(f['title']), f['score'], e(f['confidence']),
                         '<span class="b">KB %s</span>' % e(str(f['kb'])) if f.get('kb') else ''))
         parts.append('<br>%s occurrences &middot; first %s &middot; last %s' % (f['count'], e(str(f['first_seen'])), e(str(f['last_seen']))))
+        v = _verdict(res, f)
+        parts.append('<br><b>Reviewer verdict:</b> %s%s' % (e(VERDICT_LABEL[v['v']]) if v else 'not reviewed yet', (' &mdash; ' + e(v['note'])) if v and v.get('note') else ''))
         if f.get('root_of'):
             parts.append('<br><i>Earlier warning that likely explains: %s</i>' % e(f['root_of']))
         if f.get('symptom_of'):
