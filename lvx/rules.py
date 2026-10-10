@@ -225,9 +225,39 @@ rule('esx.datastore_full', 'Datastore full: VM cannot write / snapshots exhauste
      'A datastore ran out of free space (often from snapshot delta disks), stopping VMs. Free or extend the datastore first, then consolidate/delete snapshots; do not power on until there is headroom.',
      search='VM stopped There is no more space for virtual disk snapshots datastore full')
 
-BY_ID = {r['id']: r for r in R}
 
 # Prefilter keyword lists ('|' = any-of). Every regex alternative must contain one of these.
+rule('vc.fsck_emergency', 'VCSA: filesystem check failed at boot (emergency mode)', 'vcenter', 'critical', ['disk-space', 'services'],
+     'file system check', r'Failed to start File System Check on /dev/|Dependency failed for /\S*|Entering Emergency Mode|Give root password for maintenance|fsck.{0,40}(?:failed|unexpected inconsistency)',
+     'The appliance cannot mount a filesystem after an unclean shutdown (power loss/storage event) and dropped to emergency mode. Reboot, edit the GRUB entry (press e), append fsck.repair=yes to the linux line and boot (F10); repeat if it reboots. Take a snapshot/backup first when possible.',
+     search='VCSA Failed to start File System Check on /dev/vg_root_0/lv_root0 emergency mode fsck.repair=yes')
+rule('vc.upg_precheck', 'vCenter upgrade pre-check: untrusted EAM URLs / unsupported extensions', 'vcenter', 'high', ['upgrade'],
+     'not trusted|unsupported by the new', r'Source ESX agent manager Configuration contains URLs that are not trusted|extensions registered that are unsupported by the new vCenter',
+     'The upgrade pre-check blocks on ESX Agent Manager agencies pointing at untrusted VIB URLs (for example a legacy NSX-V agency) and/or registered extensions the target version no longer supports. Clean up the stale agency/extension following the KBs named in the pre-check, then rerun it.',
+     search='vCenter upgrade pre-check ESX agent manager configuration contains URLs that are not trusted extensions unsupported NSX manager')
+rule('vr.hbr_agent', 'Replication: Host Based Replication agent cannot be installed (vLCM image deltas)', 'both', 'medium', ['replication', 'upgrade'],
+     'replication agent', r'Host Based Replication Agent for ESX can.?t be installed|vLCM image has deltas',
+     'The replication product reports the HBR agent cannot be installed because the vLCM image has deltas, although the cluster may show compliant. Compare the cluster image with the desired state (vLCM compliance and hms logs); escalate to the vLCM team if compliance is clean.',
+     search='Host Based Replication Agent for ESX can\'t be installed vLCM image has deltas that need to be applied')
+rule('vc.clone_property', 'VM clone/provision fails: cannot read managed-object property (snapshot)', 'vcenter', 'medium', ['storage', 'vm-ops'],
+     'single property', r"Error reading single property '[\w.]+' from managed object: snapshot-\d+|Configuration file cannot be found",
+     'Provisioning (for example Horizon replica/clone) fails because a snapshot or VM config cannot be read, typically after a storage/network redundancy loss. Check the replica/parent VM snapshot state and datastore accessibility from all hosts.',
+     search="Cloning of VM failed VC_FAULT_FATAL Error reading single property config.hardware.device from managed object snapshot")
+rule('srm.cert_trust', 'SRM: server certificate chain not trusted after certificate change', 'vcenter', 'high', ['certificate', 'replication'],
+     'thumbprint verification', r'Server certificate chain is not trusted and thumbprint verification is not configured',
+     'Site Recovery Manager (or vSphere Replication) no longer trusts vCenter after a certificate change. Reconfigure the SRM appliance in its VAMI (both sites), and check Lookup Service for duplicate/stale SRM registrations (lsdoctor).',
+     search='SRM CertificateValidationException Server certificate chain is not trusted and thumbprint verification is not configured reconfigure')
+rule('vc.ha_failover_alarm', 'HA: "vSphere HA virtual machine failover failed" alarm', 'vcenter', 'medium', ['ha'],
+     'failover failed', r'vSphere HA virtual machine failover failed|HA (?:virtual machine )?failover failed',
+     'The alarm appears when HA believes a host failed and tries to restart VMs that are still running (locked .vmx). Verify the VMs are running; acknowledge and reset the alarm; if it persists, disable and re-enable vSphere HA on the cluster. For an RCA collect vCenter and all-host bundles and review fdm.log.',
+     search='vSphere HA virtual machine failover failed alarm all virtual machines in cluster')
+rule('vc.rdu_nfc', 'vCenter RDU/upgrade: OVF deploy NFC upload failed (TLS handshake timeout)', 'vcenter', 'high', ['upgrade', 'network'],
+     'nfc lease', r'NFC lease: upload\(.{0,120}failed|failed to read .{0,120} from OVA.{0,200}TLS handshake timeout|net/http: TLS handshake timeout',
+     'Deploying the target appliance OVF fails while uploading the disk through an ESXi NFC lease (TLS handshake timeout). A proxy configured on the vCenter is a known cause: temporarily remove it (VAMI/console), rerun the upgrade, then restore it. Also verify vCenter-to-ESXi connectivity on 443/902.',
+     search='VCF 9 upgrade vCenter reduced downtime upgrade OVF deployment fails NFC lease TLS handshake timeout proxy')
+
+BY_ID = {r['id']: r for r in R}
+
 _KW = {
  'esx.psod': 'bluescreen|psod|panic:|exception |#pf|#gp',
  'esx.mce': 'machine check|uncorrectable|hardware error',
@@ -280,6 +310,13 @@ _KW = {
  'vc.backup_fail': 'backup|checksum|telemetry',
  'esx.vr': 'vr server',
  'esx.datastore_full': 'no more space|datastore|insufficient disk',
+ 'vc.fsck_emergency': 'file system check|emergency mode|fsck|maintenance|dependency failed',
+ 'vc.upg_precheck': 'not trusted|unsupported by the new',
+ 'vr.hbr_agent': 'replication agent|vlcm image',
+ 'vc.clone_property': 'single property|cannot be found',
+ 'srm.cert_trust': 'thumbprint verification',
+ 'vc.ha_failover_alarm': 'failover failed',
+ 'vc.rdu_nfc': 'nfc lease|tls handshake',
 }
 for _r in R:
     _r['kws'] = tuple(_KW[_r['id']].split('|'))

@@ -1,7 +1,7 @@
 {
  "version": 1,
- "source": "ANONYMISED templates derived from 31 resolved support case reports. Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).",
- "reviewed_cases": 31,
+ "source": "ANONYMISED templates derived from 42 resolved support case reports. Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).",
+ "reviewed_cases": 42,
  "templates": [
   {
    "id": "CT-01",
@@ -1552,6 +1552,439 @@
     }
    ],
    "notes": ""
+  },
+  {
+   "id": "CT-27",
+   "title": "VCSA drops to emergency mode after a power outage: File System Check on the root volume failed",
+   "product": "vcenter",
+   "version": "8.0 U3",
+   "issue": "After a power outage the vCenter appliance console shows \"[FAILED] Failed to start File System Check on /dev/vg_root_0/lv_root0\" and enters emergency mode; vCenter is down.",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vc.fsck_emergency"
+   ],
+   "expect_snapshot": false,
+   "match": "File System Check|Emergency Mode",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/messages",
+     "{s} vcsa systemd[1]: [FAILED] Failed to start File System Check on /dev/vg_root_0/lv_root0.",
+     "case"
+    ],
+    [
+     -1499,
+     "var/log/messages",
+     "{s} vcsa systemd[1]: Dependency failed for /.",
+     "case"
+    ],
+    [
+     -1498,
+     "var/log/messages",
+     "{s} vcsa systemd[1]: Entering Emergency Mode. Give root password for maintenance",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "An unclean shutdown (power outage) left the root filesystem inconsistent; the boot-time fsck did not repair it automatically, so systemd entered emergency mode.",
+   "resolution": [
+    "Reboot the appliance and, at the GRUB menu, press e to edit the boot entry.",
+    "Append fsck.repair=yes to the end of the linux line and press F10 to boot (it may reboot several times while repairing).",
+    "Confirm the services come up (service-control --status --all) and take a backup afterwards."
+   ],
+   "kb": [
+    {
+     "id": "326323",
+     "title": "VCSA fails to boot with filesystem check errors (fsck.repair=yes)",
+     "role": "primary"
+    }
+   ],
+   "notes": "Case resolved with the KB steps. KB title above is a short description, not the verbatim title."
+  },
+  {
+   "id": "CT-28",
+   "title": "vCenter 7.0 to 8.0 upgrade pre-check blocks: untrusted ESX Agent Manager URLs and unsupported NSX-V extension",
+   "product": "vcenter",
+   "version": "7.0 U3 -> 8.0",
+   "issue": "The upgrade pre-check stops with \"Source ESX agent manager Configuration contains URLs that are not trusted by the system\" and \"This vCenter has extensions registered that are unsupported by the new vCenter Server\".",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_precheck"
+   ],
+   "expect_snapshot": false,
+   "match": "not trusted|unsupported by the new",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/upgrade/pre-check.log",
+     "{t} ERROR Source ESX agent manager Configuration contains URLs that are not trusted by the system: https://nsx.lab.example/bin/vdn/vibs-6.4.8/6.4.8-0000000/vxlan.zip",
+     "case"
+    ],
+    [
+     -1499,
+     "var/log/vmware/upgrade/pre-check.log",
+     "{t} ERROR This vCenter has extensions registered that are unsupported by the new vCenter Server: Extensions NSX manager",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "A stale NSX-V (legacy) ESX Agent Manager agency still references a VIB URL that is not trusted, and the NSX-V extension is not supported by the target vCenter version.",
+   "resolution": [
+    "Follow the KBs referenced by the pre-check to clean up/untrust the legacy EAM agency and remove the unsupported NSX extension.",
+    "Re-run the upgrade pre-check until it is clean."
+   ],
+   "kb": [
+    {
+     "id": "313026",
+     "title": "Broadcom KB 313026 (cited in the resolved case)",
+     "role": "cited"
+    },
+    {
+     "id": "326202",
+     "title": "Broadcom KB 326202 (cited in the resolved case)",
+     "role": "cited"
+    }
+   ],
+   "notes": "The case closed without a customer reply, so the fix was not confirmed. KB titles were not captured in the report."
+  },
+  {
+   "id": "CT-29",
+   "title": "Replication product says the HBR agent cannot be installed: \"vLCM image has deltas\" although the cluster is compliant",
+   "product": "vcenter",
+   "version": "VMware Live Recovery 9.0.4",
+   "issue": "The replication UI reports \"The Host Based Replication Agent for ESX can't be installed on <cluster>. The vLCM image has deltas that need to be applied\" while the cluster shows compliant in vLCM.",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vr.hbr_agent"
+   ],
+   "expect_snapshot": false,
+   "match": "Host Based Replication Agent|vLCM image",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/hms/hms.log",
+     "{t} INFO  [hms] Compliance status: ClusterCompliance (com.vmware.esx.settings.cluster_compliance) => { impact = REBOOT_REQUIRED, status = COMPLIANT }",
+     "case"
+    ],
+    [
+     -1499,
+     "var/log/vmware/hms/hms.log",
+     "{t} ERROR [hms] The Host Based Replication Agent for ESX can't be installed on cluster-1. The vLCM image has deltas that need to be applied",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Not established in the case: it was escalated to the vLCM team.",
+   "resolution": [],
+   "kb": [],
+   "notes": "Opening snapshot only; no resolution and no KB in the report."
+  },
+  {
+   "id": "CT-30",
+   "title": "Horizon provisioning fails after a network redundancy loss: cannot read snapshot properties of the replica",
+   "product": "esxi",
+   "version": "8.0 U3",
+   "issue": "After the loss of network redundancy, clone operations fail with \"Fault type is VC_FAULT_FATAL - Error reading single property config.hardware.device from managed object: snapshot-N\" and \"Configuration file cannot be found\".",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vc.clone_property"
+   ],
+   "expect_snapshot": false,
+   "match": "single property|cannot be found",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} error vpxd[1] [Originator@6876 sub=Default] Cloning of VM vdi-replica-01 has failed: Fault type is VC_FAULT_FATAL - Error reading single property 'config.hardware.device' from managed object: snapshot-42",
+     "case"
+    ],
+    [
+     -1499,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} error vpxd[1] [Originator@6876 sub=vpxLro] Configuration file cannot be found",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Not established: the case recorded an automated-analysis match for a storage-vMotion failure but no resolution.",
+   "resolution": [],
+   "kb": [
+    {
+     "id": "307365",
+     "title": "Automated analysis rule svmotion_fails (cited in the case)",
+     "role": "cited"
+    }
+   ],
+   "notes": "Opening snapshot only; no resolution in the report."
+  },
+  {
+   "id": "CT-31",
+   "title": "SRM plugin error after the vCenter certificate was replaced: \"Server certificate chain is not trusted\"",
+   "product": "vcenter",
+   "version": "SRM 9.0.2",
+   "issue": "After installing a new SSL certificate on vCenter, Site Recovery Manager shows CertificateValidationException: Server certificate chain is not trusted and thumbprint verification is not configured.",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "srm.cert_trust"
+   ],
+   "expect_snapshot": false,
+   "match": "thumbprint verification",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/srm/vmware-dr.log",
+     "{t} ERROR com.vmware.vim.vmomi.core.exception.CertificateValidationException: Server certificate chain is not trusted and thumbprint verification is not configured",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The SRM appliance was not reconfigured after the vCenter certificate was renewed, and Lookup Service held duplicate SRM registrations (a stale v8.6 entry next to v9.0.2).",
+   "resolution": [
+    "If the SRM VAMI admin password is lost, reset it first (KB 312789).",
+    "Run lsdoctor on the vCenter to find duplicate SRM registrations; unregister the stale one from Lookup Service and remove the stale extension from the vCenter Extension Manager.",
+    "Run Reconfigure in the SRM VAMI, then on the paired site, and re-establish the site pairing."
+   ],
+   "kb": [
+    {
+     "id": "320837",
+     "title": "Using the lsdoctor tool",
+     "role": "primary"
+    },
+    {
+     "id": "337576",
+     "title": "Cleaning up decommissioned SRM registrations",
+     "role": "secondary"
+    }
+   ],
+   "notes": "KB 312789 was linked and later unlinked in the case; mentioned only for the password reset."
+  },
+  {
+   "id": "CT-32",
+   "title": "\"vSphere HA virtual machine failover failed\" alarm on every VM in a cluster",
+   "product": "vcenter",
+   "version": "9.0",
+   "issue": "All VMs in a cluster show the alarm \"vSphere HA virtual machine failover failed\". The customer wants to know how to clear it and requests an RCA.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.ha_failover_alarm"
+   ],
+   "expect_snapshot": false,
+   "match": "failover failed",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} warning vpxd[1] [Originator@6876 sub=vpxLro] vSphere HA virtual machine failover failed on vm-app-01",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Likely a transient HA event: the HA primary declared a host isolated/dead after a network blip, agent restart or metadata inconsistency, and failover attempts failed because the VMs were still running with locked .vmx files. Not proven: no log bundle was ever received.",
+   "resolution": [
+    "Verify the VMs are running and accessible (then the alert is a false positive).",
+    "Acknowledge the triggered alarms and reset to green.",
+    "If it persists, disable vSphere HA on the cluster, wait for the agents to be removed, then enable it again."
+   ],
+   "kb": [
+    {
+     "id": "313670",
+     "title": "vSphere HA virtual machine failover failed alert on virtual machines",
+     "role": "secondary"
+    },
+    {
+     "id": "318199",
+     "title": "DRS migrates all VMs to a single ESXi host after reverting vCenter to a snapshot",
+     "role": "secondary"
+    }
+   ],
+   "notes": "Customer confirmed by phone the issue was resolved after clearing alarms; the RCA was never done (no bundle)."
+  },
+  {
+   "id": "CT-33",
+   "title": "/storage/core partition full of core files, vCenter diagnostics disk exhaustion alarm",
+   "product": "vcenter",
+   "version": "8.0 U3",
+   "issue": "vCenter shows \"Diagnostics Disk Exhaustion\"; /storage/core is at 87% or higher because services crashed repeatedly and left core files.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [],
+   "expect_snapshot": true,
+   "match": "core",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vmon/vmon.log",
+     "{t} warning vmon Disk /storage/core usage is above the critical threshold",
+     "typical"
+    ],
+    [
+     -1400,
+     "var/log/messages",
+     "{s} vcsa systemd-coredump[2201]: Process 1234 (vpxd) of user 0 dumped core.",
+     "typical"
+    ]
+   ],
+   "extra_files": {
+    "commands/df_h.txt": "Filesystem                      Size  Used Avail Use% Mounted on\n/dev/mapper/core_vg-core         25G   23G  1.9G  96% /storage/core\n/dev/mapper/log_vg-log          9.8G  2.2G  7.1G  24% /storage/log\n"
+   },
+   "cause": "Repeated service crashes accumulated core dumps (core.vpxd.N, core.netlogond.N) in /storage/core; the appliance stops vpxd when a critical partition exceeds about 95%.",
+   "resolution": [
+    "df -h to confirm /storage/core usage; cd /storage/core and identify the core files.",
+    "Delete old cores as described in the KB, then acknowledge and reset the alarm to green.",
+    "Investigate why services crash (most recent core timestamps) if it recurs."
+   ],
+   "kb": [
+    {
+     "id": "318750",
+     "title": "/storage/core partition full due to core files in vCenter Server Appliance",
+     "role": "primary"
+    }
+   ],
+   "notes": "Resolved on the first call after deleting cores."
+  },
+  {
+   "id": "CT-34",
+   "title": "SDDC Manager 5.2.1 down: \"Failed to init PSC and/or Postgres\" after the management vCenter root password expired",
+   "product": "sddc",
+   "version": "5.2.1",
+   "issue": "The SDDC Manager UI shows \"Failed to init PSC and/or Postgres. Check the SDDC Manager UI Server logs\" or \"VMware Cloud Foundation is initializing\".",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vcf.sddc_init"
+   ],
+   "expect_snapshot": false,
+   "match": "Failed to initiate PSC|primaryPscInit",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vcf/sddc-manager-ui-app/sddcManagerServer.log",
+     "{t} ERROR [a1b2c3d4e5f60718] [services/pscUtils.js, init-pscs] Caught error from await primaryPscInit.",
+     "case"
+    ],
+    [
+     -1499,
+     "var/log/vmware/vcf/sddc-manager-ui-app/sddcManagerServer.log",
+     "{t} ERROR [a1b2c3d4e5f60718] [services/pscUtils.js, init-pscs] Failed to initiate PSC: Primary psc init failed and failover psc init also failed",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The root password of the management domain vCenter expired or was changed outside SDDC Manager, so its stored credential no longer works and PSC/Postgres initialisation fails.",
+   "resolution": [
+    "SSH to the SDDC Manager, review sddcManagerServer.log for the primaryPscInit errors.",
+    "Try root SSH to the management vCenter; a failure or \"Password expired\" confirms the cause.",
+    "Reset/change the vCenter root password per the KB (GRUB reset if locked), update the credential in SDDC Manager and restart the UI service."
+   ],
+   "kb": [
+    {
+     "id": "322247",
+     "title": "Resetting the root password in vCenter Server Appliance",
+     "role": "primary"
+    }
+   ],
+   "notes": "Same family as CT-26 on a different SDDC Manager version."
+  },
+  {
+   "id": "CT-35",
+   "title": "VCF 9 vCenter reduced-downtime upgrade fails: OVF deployment NFC upload \"TLS handshake timeout\"",
+   "product": "sddc",
+   "version": "VCF 5.2.2 -> 9.0.2",
+   "issue": "Upgrading the management vCenter with RDU fails: the OVF deployment fails in vCenter and the LCM log shows \"failed to get upgrade status\".",
+   "evidence": "case-excerpts",
+   "bundle": true,
+   "expect_rules": [
+    "vc.rdu_nfc"
+   ],
+   "expect_snapshot": false,
+   "match": "TLS handshake timeout|NFC lease",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vlcm/vlcm.log",
+     "{t} info vlcm [vm/deploy.go:232] [ObjectID=54[1].7] NFC lease: upload(VMware-vCenter-Server-Appliance-9.0.2.0.25148086_OVF10-disk1.vmdk)",
+     "case"
+    ],
+    [
+     -1490,
+     "var/log/vmware/vlcm/vlcm.log",
+     "{t} error vlcm [ova/read.go:118] [ObjectID=54[1].7] ova: failed to read VMware-vCenter-Server-Appliance-9.0.2.0.25148086_OVF10-disk1.vmdk from OVA: Post \"https://esx02.lab.example/nfc/00000000-0000-0000-0000-000000000000/disk-0.vmdk\": net/http: TLS handshake timeout",
+     "case"
+    ],
+    [
+     -1489,
+     "var/log/vmware/vlcm/vlcm.log",
+     "{t} error vlcm [vm/deploy.go:88] [ObjectID=54[1].7] Deploy failed: deploy: NFC lease: upload(VMware-vCenter-Server-Appliance-9.0.2.0.25148086_OVF10-disk1.vmdk) failed: net/http: TLS handshake timeout",
+     "case"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The vCenter had a proxy configured; the NFC upload of the new appliance disk to the ESXi host timed out in the TLS handshake. Case treated the proxy as the cause and the upgrade succeeded after removing it.",
+   "resolution": [
+    "Temporarily disable or remove the proxy configuration on the vCenter (VAMI or console).",
+    "Start the Reduced Downtime Upgrade again.",
+    "After it completes, re-enable the proxy settings."
+   ],
+   "kb": [
+    {
+     "id": "418332",
+     "title": "Broadcom KB 418332 (cited in the resolved case)",
+     "role": "cited"
+    }
+   ],
+   "notes": "KB 388921 and 395322 were linked then unlinked in the case; only 418332 remained. Titles were not captured."
+  },
+  {
+   "id": "CT-36",
+   "title": "Cannot remove evaluation / time-limited licence entries from vCenter licensing (no log evidence)",
+   "product": "vcenter",
+   "version": "8.0 U3",
+   "issue": "The customer cannot remove evaluation or expired licence entries from the vCenter licensing inventory.",
+   "evidence": "no-log",
+   "bundle": false,
+   "expect_rules": [],
+   "expect_snapshot": false,
+   "match": null,
+   "noise": "auto",
+   "lines": [],
+   "extra_files": {},
+   "cause": "",
+   "resolution": [
+    "Assign valid licences to hosts still on evaluation, remove the key when usage reaches 0, and clean up the remaining entries via the MOB as described in the KBs."
+   ],
+   "kb": [
+    {
+     "id": "334240",
+     "title": "Broadcom KB 334240 (cited in the resolved case)",
+     "role": "cited"
+    },
+    {
+     "id": "323148",
+     "title": "Broadcom KB 323148 (cited in the resolved case)",
+     "role": "cited"
+    },
+    {
+     "id": "legacy:2115869",
+     "title": "Broadcom KB legacy:2115869 (cited in the resolved case)",
+     "role": "cited"
+    }
+   ],
+   "notes": "Administrative case: nothing to analyse in logs."
   }
  ]
 }
