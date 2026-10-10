@@ -228,7 +228,7 @@ rule('esx.datastore_full', 'Datastore full: VM cannot write / snapshots exhauste
 
 # Prefilter keyword lists ('|' = any-of). Every regex alternative must contain one of these.
 rule('vc.fsck_emergency', 'VCSA: filesystem check failed at boot (emergency mode)', 'vcenter', 'critical', ['disk-space', 'services'],
-     'file system check', r'Failed to start File System Check on /dev/|Dependency failed for /\S*|Entering Emergency Mode|Give root password for maintenance|fsck.{0,40}(?:failed|unexpected inconsistency)',
+     'file system check', r'Failed to start File System Check on /dev/|Dependency failed for /\S*|Entering Emergency Mode|Give root password for maintenance|fsck.{0,40}(?:failed|unexpected inconsistency)|EXT4-fs error \(device [\w-]+\)',
      'The appliance cannot mount a filesystem after an unclean shutdown (power loss/storage event) and dropped to emergency mode. Reboot, edit the GRUB entry (press e), append fsck.repair=yes to the linux line and boot (F10); repeat if it reboots. Take a snapshot/backup first when possible.',
      search='VCSA Failed to start File System Check on /dev/vg_root_0/lv_root0 emergency mode fsck.repair=yes')
 rule('vc.upg_precheck', 'vCenter upgrade pre-check: untrusted EAM URLs / unsupported extensions', 'vcenter', 'high', ['upgrade'],
@@ -255,6 +255,20 @@ rule('vc.rdu_nfc', 'vCenter RDU/upgrade: OVF deploy NFC upload failed (TLS hands
      'nfc lease', r'NFC lease: upload\(.{0,120}failed|failed to read .{0,120} from OVA.{0,200}TLS handshake timeout|net/http: TLS handshake timeout',
      'Deploying the target appliance OVF fails while uploading the disk through an ESXi NFC lease (TLS handshake timeout). A proxy configured on the vCenter is a known cause: temporarily remove it (VAMI/console), rerun the upgrade, then restore it. Also verify vCenter-to-ESXi connectivity on 443/902.',
      search='VCF 9 upgrade vCenter reduced downtime upgrade OVF deployment fails NFC lease TLS handshake timeout proxy')
+rule('vc.upg_stage2_cause', 'vCenter upgrade stage 2: known failure cause (vPostgres, VMDir, credentials, network, VUM import)', 'vcenter', 'high', ['upgrade'],
+     'vpostgres-firstboot|vmdir replication status|invalid root credentials|failed to set network|already exists in the network|update manager data',
+     r'Encountered an internal error.{0,40}vpostgres-firstboot|Unable to retrieve VMDir replication status|Invalid root credentials for source appliance|Failed to set network|IP already exists in the network|Importing VMware vSphere Update Manager data',
+     'The upgrade died with a specific known message. Match it to the KB list: vPostgres firstboot error on 8.0 U3h/U3i sources (unsupported back-in-time upgrade: restore the source), VMDir replication pre-check (source entered by IP instead of FQDN), root credential error (SSH port 22 blocked), network/IP conflict at switch-over, or Update Manager data import. Check /var/log/vmware/upgrade/ and the firstboot logs on source and target.',
+     search='vCenter upgrade fails stage 2 vpostgres-firstboot VMDir replication status invalid root credentials')
+rule('vc.ha_unreachable', 'vSphere HA: agent unreachable / uninitialized / cannot reach management addresses', 'both', 'high', ['ha', 'certificate', 'network'],
+     'agent unreachable|agent uninitialized|not reachable from vcenter|management network addresses',
+     r'HA [Aa]gent (?:is )?(?:[Uu]nreachable|[Uu]ninitialized)|vSphere HA agent is not reachable from vCenter|cannot reach some management network addresses|Agent Unreachable state',
+     'vCenter or the other HA agents cannot talk to the FDM agent on a host. Check, in order: certificate mode (vpxd.certmgmt.mode should be vmca unless thumbprint is deliberate) and host certificates, stale /etc/hosts entries for the vCenter FQDN, firewall/VLAN on TCP/UDP 8182 (and 8183/8042/DNS), the vLCM "updateManager" firewall ruleset, and host TPM attestation alarms; then Reconfigure for vSphere HA on the host.',
+     search='vSphere HA agent unreachable uninitialized after vCenter 8.0 U3 upgrade certificate')
+rule('vc.cert_expired_svc', 'vCenter services down because a required certificate expired', 'vcenter', 'critical', ['certificate', 'services'],
+     'expired', r'(?:certificate|cert).{0,80}(?:has expired|is expired|expired on)|x509: certificate has expired|CERTIFICATE_EXPIRED|certificate expired',
+     'vpxd/vpxd-svcs and the reverse proxy fail at service start (or after a reboot) when Machine SSL or another VECS certificate is expired. Check expiry with vecs-cli / the vCert tool, renew (Certificate Manager/vCert), verify NTP and reverse DNS, then restart all services.',
+     search='vCenter 503 services fail to start expired certificate vecs-cli vCert', root_for=('vc.503', 'vc.service_down'))
 
 BY_ID = {r['id']: r for r in R}
 
@@ -310,13 +324,16 @@ _KW = {
  'vc.backup_fail': 'backup|checksum|telemetry',
  'esx.vr': 'vr server',
  'esx.datastore_full': 'no more space|datastore|insufficient disk',
- 'vc.fsck_emergency': 'file system check|emergency mode|fsck|maintenance|dependency failed',
+ 'vc.fsck_emergency': 'file system check|emergency mode|fsck|maintenance|dependency failed|ext4-fs error',
  'vc.upg_precheck': 'not trusted|unsupported by the new',
  'vr.hbr_agent': 'replication agent|vlcm image',
  'vc.clone_property': 'single property|cannot be found',
  'srm.cert_trust': 'thumbprint verification',
  'vc.ha_failover_alarm': 'failover failed',
  'vc.rdu_nfc': 'nfc lease|tls handshake',
+ 'vc.upg_stage2_cause': 'vpostgres-firstboot|vmdir replication status|invalid root credentials|failed to set network|already exists in the network|update manager data',
+ 'vc.ha_unreachable': 'agent unreachable|agent uninitialized|not reachable from vcenter|management network addresses',
+ 'vc.cert_expired_svc': 'expired',
 }
 for _r in R:
     _r['kws'] = tuple(_KW[_r['id']].split('|'))

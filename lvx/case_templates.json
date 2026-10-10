@@ -1,6 +1,6 @@
 {
  "version": 1,
- "source": "ANONYMISED templates derived from 42 resolved support case reports. Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).",
+ "source": "ANONYMISED templates derived from 42 resolved support case reports (CT-01..CT-36) plus synthetic scenarios built from public KB/community summaries (CT-37 onwards, marked in their notes). Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).",
  "reviewed_cases": 42,
  "templates": [
   {
@@ -1985,6 +1985,568 @@
     }
    ],
    "notes": "Administrative case: nothing to analyse in logs."
+  },
+  {
+   "id": "CT-37",
+   "title": "Upgrade 8.0 U3h/U3i to 9.0.x fails in stage 2: \"Encountered an internal error\" in vpostgres firstboot",
+   "product": "vcenter",
+   "version": "8.0 U3h -> 9.0.1",
+   "issue": "Stage 2 of the upgrade stops with \"Encountered an internal error. see /var/log/firstboot/vpostgres-firstboot.py_<pid>_stderr.log\".",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_stage2_cause"
+   ],
+   "expect_snapshot": false,
+   "match": "Encountered an internal error|Stage 2",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/firstboot/vpostgres-firstboot.py_2514_stderr.log",
+     "{t} ERROR Encountered an internal error. see /var/log/firstboot/vpostgres-firstboot.py_2514_stderr.log",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} ERROR Stage 2 failed: firstboot script vpostgres-firstboot.py exited with code 1",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the KB summary the source is 8.0 Update 3h/3i, which Broadcom treats as an unsupported back-in-time upgrade to this 9.x build.",
+   "resolution": [
+    "The summary states there is no workaround: power off the new 9.x appliance and restore the source from the pre-upgrade snapshot or backup.",
+    "Check the supported upgrade path for the exact source and target builds before retrying."
+   ],
+   "kb": [
+    {
+     "id": "423649",
+     "title": "vCenter upgrade from 8.0 U3h to 9.0.1 fails with an error \"Encountered an internal error...\"",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-38",
+   "title": "vCenter 9.x upgrade stage 2 pre-check fails: \"Unable to retrieve VMDir replication status information\"",
+   "product": "vcenter",
+   "version": "8.0 -> 9.x",
+   "issue": "The stage 2 pre-check stops with Unable to retrieve VMDir replication status information.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_stage2_cause"
+   ],
+   "expect_snapshot": false,
+   "match": "VMDir replication",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/upgrade/upgrade-precheck.log",
+     "{t} ERROR Unable to retrieve VMDir replication status information",
+     "typical"
+    ],
+    [
+     -1499,
+     "var/log/vmware/vmdird/vmdird-syslog.log",
+     "{t} WARN vmdird: duplicate server object found for vc01.lab.example (192.0.2.10)",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Likely cause named in the summary: the source was entered by IP address instead of its FQDN/PNID in stage 1, which created a duplicate server object in the directory.",
+   "resolution": [
+    "Remove the duplicate entry from the directory, restart services and retry; use the FQDN/PNID of the source in stage 1."
+   ],
+   "kb": [
+    {
+     "id": "452909",
+     "title": "vCenter 9.x upgrade stage 2 pre-check fails with \"Unable to retrieve VMDir replication status information\"",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-39",
+   "title": "Upgrade stage 2 fails: \"Invalid root credentials for source appliance\" although the password is right",
+   "product": "vcenter",
+   "version": "8.0 U3 -> 9.0",
+   "issue": "Stage 2 fails with Invalid root credentials for source appliance; the root password is correct.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_stage2_cause"
+   ],
+   "expect_snapshot": false,
+   "match": "Invalid root credentials",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} ERROR Invalid root credentials for source appliance",
+     "typical"
+    ],
+    [
+     -1499,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} WARN ssh: connect to host vc-old.lab.example port 22: Connection timed out",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The summary names blocked SSH on port 22 between target and source as a cause (not proven for any specific environment).",
+   "resolution": [
+    "Allow SSH (TCP 22) between the new appliance and the source, make sure SSH is enabled on the source, and retry stage 2."
+   ],
+   "kb": [
+    {
+     "id": "409555",
+     "title": "Stage 2 of the vCenter upgrade fails with error - Invalid root credentials for source appliance",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-40",
+   "title": "Upgrade stage 2 fails at network switch-over: \"IP already exists in the network\" / \"Failed to set network\"",
+   "product": "vcenter",
+   "version": "8.0 -> 8.0 U3 / 9.0",
+   "issue": "Stage 2 fails when the new appliance takes over the source IP: IP already exists in the network, or Failed to set network.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_stage2_cause"
+   ],
+   "expect_snapshot": false,
+   "match": "already exists|Failed to set network",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} ERROR IP already exists in the network",
+     "typical"
+    ],
+    [
+     -1499,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} ERROR Failed to set network on the target appliance",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The summaries point to an IP conflict at switch-over (the source still holds the address, or another device answers on it) or a network configuration the target cannot apply. Not proven for any specific environment.",
+   "resolution": [
+    "Make sure the source is shut down/released correctly and nothing else uses the address; check the port group and VLAN for the target; retry per the KB."
+   ],
+   "kb": [
+    {
+     "id": "376335",
+     "title": "vCenter upgrade fails with an error \"Error: IP already exists in the network\"",
+     "role": "primary"
+    },
+    {
+     "id": "369716",
+     "title": "vCenter server upgrade fails in stage 2 with an error: \"Failed to set network\"",
+     "role": "secondary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-41",
+   "title": "Upgrade stage 2 fails importing Update Manager data (stale legacy records)",
+   "product": "vcenter",
+   "version": "8.0 U2d / 9.x",
+   "issue": "Stage 2 fails with \"A problem occurred while - Importing VMware vSphere Update Manager data\".",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.upg_stage2_cause"
+   ],
+   "expect_snapshot": false,
+   "match": "Update Manager data",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/upgrade/import-upgrade-runner.log",
+     "{t} ERROR A problem occurred while - Importing VMware vSphere Update Manager data",
+     "typical"
+    ],
+    [
+     -1499,
+     "var/log/vmware/vmware-updatemgr/vum-server/vmware-vum-server.log",
+     "{t} ERROR foreign key violation on vci_va_upgrade_files",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The search summary describes stale legacy Update Manager records breaking a foreign-key cleanup during import (the exact KB for 9.x was not identified; the cited article is the 8.0 U2d one).",
+   "resolution": [
+    "Snapshot the source first. Reset the Update Manager database on the source (this removes custom baselines and imported patches) or remove the orphaned vci_va_upgrade_files / vci_va_upgrades rows as the KB describes, then retry."
+   ],
+   "kb": [
+    {
+     "id": "371079",
+     "title": "Upgrade to vCenter 8.0 U2d fails on stage 2 with error \"A problem occurred while- Importing VMware vSphere Update Manager data...\"",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-42",
+   "title": "vSphere HA \"Agent Unreachable / Uninitialized\" after a vCenter 8.0 U3 install or upgrade (certificate mode)",
+   "product": "vcenter",
+   "version": "8.0 U3",
+   "issue": "After a vCenter 8.0 U3 install or upgrade, enabling HA fails with HA Agent unreachable or HA Agent uninitialized on one or more hosts.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.ha_unreachable"
+   ],
+   "expect_snapshot": false,
+   "match": "Agent (?:unreachable|uninitialized)",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} error vpxd[1] [Originator@6876 sub=vpxLro] vSphere HA agent on host esx01.lab.example: HA Agent unreachable",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/run/log/fdm.log",
+     "{t} error fdm[2111] [Originator@6876 sub=Cluster] HA Agent uninitialized",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The KB summaries point to the vpxd.certmgmt.mode setting being \"thumbprint\" instead of \"vmca\", and/or stale host certificates.",
+   "resolution": [
+    "Set the certificate mode to VMCA (vpxd.certmgmt.mode), refresh the host certificates, then toggle vSphere HA off and on for the cluster."
+   ],
+   "kb": [
+    {
+     "id": "379366",
+     "title": "vSphere HA fails to enable with error \"HA Agent unreachable\" or \"HA Agent uninitialized\" after vCenter install/upgrade to 8.0 U3",
+     "role": "primary"
+    },
+    {
+     "id": "392316",
+     "title": "vSphere HA Configuration Fails After vCenter Server 8.0 Update 3 Upgrade with \"HA Agent Unreachable.\"",
+     "role": "secondary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-43",
+   "title": "vSphere HA: \"agent is not reachable from vCenter Server\" caused by a wrong /etc/hosts entry on the ESXi host",
+   "product": "esxi",
+   "version": "8.0 U3",
+   "issue": "HA fails to configure on a host with The vSphere HA agent is not reachable from vCenter Server.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.ha_unreachable"
+   ],
+   "expect_snapshot": false,
+   "match": "not reachable",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} error vpxd[1] [Originator@6876 sub=vpxLro] The vSphere HA agent is not reachable from vCenter Server",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/run/log/vpxa.log",
+     "{t} warning vpxa[2140] [Originator@6876 sub=vpxaNet] failed to connect to vc01.lab.example (192.0.2.99): No route to host",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "A static /etc/hosts entry on the ESXi host maps the vCenter FQDN to a wrong address (per the KB summary).",
+   "resolution": [
+    "Remove or correct the stale vCenter entry in /etc/hosts on the host, then reconfigure vSphere HA on it."
+   ],
+   "kb": [
+    {
+     "id": "438017",
+     "title": "vSphere HA fails with error \"The vSphere HA agent is not reachable from vCenter Server\" due to incorrect /etc/hosts entries",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-44",
+   "title": "vSphere HA: \"Applying HA VIBs on the cluster encountered a failure\" (vLCM updateManager firewall ruleset disabled)",
+   "product": "esxi",
+   "version": "8.0 U3",
+   "issue": "Enabling HA fails with Applying HA VIBs on the cluster encountered a failure.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.ha_agent_install"
+   ],
+   "expect_snapshot": false,
+   "match": "Applying HA VIBs",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vpxd/vpxd-1.log",
+     "{t} error vpxd[1] [Originator@6876 sub=vpxLro] Applying HA VIBs on the cluster encountered a failure.",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/run/log/hostd.log",
+     "{t} warning hostd[2099] [Originator@6876 sub=Default] firewall ruleset updateManager is disabled",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the KB summary the vLCM \"updateManager\" firewall ruleset is disabled on the hosts, which blocks HA VIB installation.",
+   "resolution": [
+    "Enable the updateManager firewall ruleset on the affected hosts, then retry/Reconfigure for vSphere HA."
+   ],
+   "kb": [
+    {
+     "id": "399646",
+     "title": "The vSphere HA agent fails with the error \"Applying HA VIBs on the cluster encountered a failure\" in the vSphere Client",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-45",
+   "title": "vSphere HA: \"agent on host cannot reach some management network addresses of other hosts\"",
+   "product": "esxi",
+   "version": "8.0 U3",
+   "issue": "ESXi hosts show the alert vSphere HA agent on host cannot reach some management network addresses of other hosts.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.ha_unreachable"
+   ],
+   "expect_snapshot": false,
+   "match": "management network addresses",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/run/log/fdm.log",
+     "{t} warning fdm[2111] [Originator@6876 sub=Cluster] vSphere HA agent on host esx02.lab.example cannot reach some management network addresses of other hosts",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/run/log/fdm.log",
+     "{t} info fdm[2111] [Originator@6876 sub=Cluster] Agent Unreachable state for host esx03.lab.example",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The summaries name VLAN, firewall or partition problems on the HA agent ports (TCP/UDP 8182; also 8183, 8042 and DNS 53).",
+   "resolution": [
+    "Verify the management VLAN and firewall rules on the HA ports between all hosts, then Reconfigure for vSphere HA on the host."
+   ],
+   "kb": [
+    {
+     "id": "418585",
+     "title": "ESX host shows \"vSphere HA agent on host cannot reach some management network addresses of other hosts\" alert",
+     "role": "primary"
+    },
+    {
+     "id": "409440",
+     "title": "Troubleshooting vSphere HA Agent in Unreachable State",
+     "role": "secondary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-46",
+   "title": "vCenter not accessible (503) after a reboot because a certificate expired",
+   "product": "vcenter",
+   "version": "8.0 U3",
+   "issue": "After a reboot the vSphere Client and VAMI return 503 / no healthy upstream; vpxd and vpxd-svcs do not start.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.cert_expired_svc",
+    "vc.503"
+   ],
+   "expect_snapshot": false,
+   "match": "expired|no healthy upstream",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vmon/vmon.log",
+     "{t} error vmon Service vpxd-svcs failed to start: x509: certificate has expired",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/log/vmware/envoy/envoy.log",
+     "{t} warning envoy upstream connect error or disconnect/reset before headers: no healthy upstream",
+     "typical"
+    ],
+    [
+     -1480,
+     "var/log/vmware/vpxd/vpxd.log",
+     "{t} error vpxd Machine SSL certificate has expired on 2026-03-01",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "A required VECS certificate (Machine SSL in the KB 451480 summary) expired; services refuse to start once restarted.",
+   "resolution": [
+    "Enable SSH from the appliance console if needed, check expiry with vecs-cli or the vCert tool, renew the expired certificate, check NTP and reverse DNS, and restart all services (service-control --stop --all && --start --all). Snapshot first."
+   ],
+   "kb": [
+    {
+     "id": "344201",
+     "title": "Error: \"no healthy upstream\" or \"503 Service Unavailable\" when accessing vCenter Server",
+     "role": "primary"
+    },
+    {
+     "id": "451480",
+     "title": "vCenter Server VAMI 503 Error and Service Startup Failures Due to Expired SSL Certificates on vCenter 8.0.3",
+     "role": "secondary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-47",
+   "title": "VAMI (port 5480) returns \"503 - OK\": applmgmt service stopped",
+   "product": "vcenter",
+   "version": "8.0",
+   "issue": "The vCenter Appliance Management Interface returns 503 - OK (Service Unavailable).",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.service_down"
+   ],
+   "expect_snapshot": false,
+   "match": "applmgmt",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/vmware/vmon/vmon.log",
+     "{t} error vmon Service applmgmt stopped unexpectedly",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/log/vmware/applmgmt/applmgmt.log",
+     "{t} ERROR applmgmt service not running, port 5480 closed",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The KB summary names the applmgmt service being stopped as the usual cause; if it will not start, certificates are the next check.",
+   "resolution": [
+    "service-control --status applmgmt, then service-control --start applmgmt; if it fails to start check the certificates."
+   ],
+   "kb": [
+    {
+     "id": "378577",
+     "title": "Attempting to access the vCenter Appliance Management Interface results in a 503 - OK Error (Service Unavailable)",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-48",
+   "title": "VCSA boots to a black screen with a blinking cursor (filesystem corruption)",
+   "product": "vcenter",
+   "version": "8.0",
+   "issue": "After a power-on or host crash the vCenter VM console shows only a blinking cursor and never boots.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "vc.fsck_emergency"
+   ],
+   "expect_snapshot": false,
+   "match": "EXT4-fs error",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/messages",
+     "{s} vcsa kernel: EXT4-fs error (device dm-0): ext4_lookup:1700: inode #131073: comm systemd: deleted inode referenced",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "The KB summary names filesystem corruption of the appliance as the cause.",
+   "resolution": [
+    "Snapshot or back up the VCSA first (connect directly to the ESXi host if it runs on a host it manages). Reboot, edit the GRUB entry and add the forced fsck parameters to the linux line, then boot."
+   ],
+   "kb": [
+    {
+     "id": "413871",
+     "title": "VMware vCenter Server fails to boot and shows a black screen with a blinking/flashing cursor",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
+  },
+  {
+   "id": "CT-49",
+   "title": "VM registration / power-on hangs after an ESXi boot-drive failure: orphaned .lck files",
+   "product": "esxi",
+   "version": "8.0 U3",
+   "issue": "After an ESXi host lost its boot drive, registering or powering on its VMs hangs from vCenter.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "esx.vm_open_disk"
+   ],
+   "expect_snapshot": false,
+   "match": "Cannot open the disk",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/run/log/hostd.log",
+     "{t} error hostd[2099] [Originator@6876 sub=Vmsvc.vm:/vmfs/volumes/ds01/app01/app01.vmx] Failed to start the virtual machine. Module Disk power on failed. Cannot open the disk '/vmfs/volumes/ds01/app01/app01.vmdk' or one of the snapshot disks it depends on. 16 (Device or resource busy)",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the KB summary: orphaned lock files left by the failed host.",
+   "resolution": [
+    "Log in to a healthy ESXi host (SSH or Browse Datastore), find and move the *.lck files in the VM folder, then register and power on the VM from that host. Back up first."
+   ],
+   "kb": [
+    {
+     "id": "435528",
+     "title": "VM registration or power-on hangs in vCenter due to orphaned locks after ESXi boot drive failure",
+     "role": "primary"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. "
   }
  ]
 }

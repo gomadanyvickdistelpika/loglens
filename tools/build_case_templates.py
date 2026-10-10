@@ -478,9 +478,130 @@ tpl('CT-36', 'Cannot remove evaluation / time-limited licence entries from vCent
     kbs=[kb(334240, '', 'cited'), kb(323148, '', 'cited'), kb('legacy:2115869', '', 'cited')],
     notes='Administrative case: nothing to analyse in logs.')
 
+# ============================================================================= community / KB-derived scenarios (not resolved cases)
+CN = 'SYNTHETIC SCENARIO built from public Broadcom KB / community search-result summaries, not from a resolved support case; the article text was not read in full. '
+FB = 'var/log/firstboot/'
+UP = 'var/log/vmware/upgrade/'
+
+tpl('CT-37', 'Upgrade 8.0 U3h/U3i to 9.0.x fails in stage 2: "Encountered an internal error" in vpostgres firstboot', 'vcenter', '8.0 U3h -> 9.0.1',
+    'Stage 2 of the upgrade stops with "Encountered an internal error. see /var/log/firstboot/vpostgres-firstboot.py_<pid>_stderr.log".',
+    'mixed', ['vc.upg_stage2_cause'], [
+        (-1500, FB + 'vpostgres-firstboot.py_2514_stderr.log', '{t} ERROR Encountered an internal error. see /var/log/firstboot/vpostgres-firstboot.py_2514_stderr.log', 'typical'),
+        (-1490, 'var/log/vmware/upgrade/import-upgrade-runner.log', '{t} ERROR Stage 2 failed: firstboot script vpostgres-firstboot.py exited with code 1', 'typical')],
+    cause='Per the KB summary the source is 8.0 Update 3h/3i, which Broadcom treats as an unsupported back-in-time upgrade to this 9.x build.',
+    resolution=['The summary states there is no workaround: power off the new 9.x appliance and restore the source from the pre-upgrade snapshot or backup.', 'Check the supported upgrade path for the exact source and target builds before retrying.'],
+    kbs=[kb(423649, 'vCenter upgrade from 8.0 U3h to 9.0.1 fails with an error "Encountered an internal error..."', 'primary')], match=r'Encountered an internal error|Stage 2', notes=CN)
+
+tpl('CT-38', 'vCenter 9.x upgrade stage 2 pre-check fails: "Unable to retrieve VMDir replication status information"', 'vcenter', '8.0 -> 9.x',
+    'The stage 2 pre-check stops with Unable to retrieve VMDir replication status information.',
+    'mixed', ['vc.upg_stage2_cause'], [
+        (-1500, UP + 'upgrade-precheck.log', '{t} ERROR Unable to retrieve VMDir replication status information', 'typical'),
+        (-1499, 'var/log/vmware/vmdird/vmdird-syslog.log', '{t} WARN vmdird: duplicate server object found for vc01.lab.example (192.0.2.10)', 'typical')],
+    cause='Likely cause named in the summary: the source was entered by IP address instead of its FQDN/PNID in stage 1, which created a duplicate server object in the directory.',
+    resolution=['Remove the duplicate entry from the directory, restart services and retry; use the FQDN/PNID of the source in stage 1.'],
+    kbs=[kb(452909, 'vCenter 9.x upgrade stage 2 pre-check fails with "Unable to retrieve VMDir replication status information"', 'primary')], match=r'VMDir replication', notes=CN)
+
+tpl('CT-39', 'Upgrade stage 2 fails: "Invalid root credentials for source appliance" although the password is right', 'vcenter', '8.0 U3 -> 9.0',
+    'Stage 2 fails with Invalid root credentials for source appliance; the root password is correct.',
+    'mixed', ['vc.upg_stage2_cause'], [
+        (-1500, UP + 'import-upgrade-runner.log', '{t} ERROR Invalid root credentials for source appliance', 'typical'),
+        (-1499, UP + 'import-upgrade-runner.log', '{t} WARN ssh: connect to host vc-old.lab.example port 22: Connection timed out', 'typical')],
+    cause='The summary names blocked SSH on port 22 between target and source as a cause (not proven for any specific environment).',
+    resolution=['Allow SSH (TCP 22) between the new appliance and the source, make sure SSH is enabled on the source, and retry stage 2.'],
+    kbs=[kb(409555, 'Stage 2 of the vCenter upgrade fails with error - Invalid root credentials for source appliance', 'primary')], match=r'Invalid root credentials', notes=CN)
+
+tpl('CT-40', 'Upgrade stage 2 fails at network switch-over: "IP already exists in the network" / "Failed to set network"', 'vcenter', '8.0 -> 8.0 U3 / 9.0',
+    'Stage 2 fails when the new appliance takes over the source IP: IP already exists in the network, or Failed to set network.',
+    'mixed', ['vc.upg_stage2_cause'], [
+        (-1500, UP + 'import-upgrade-runner.log', '{t} ERROR IP already exists in the network', 'typical'),
+        (-1499, UP + 'import-upgrade-runner.log', '{t} ERROR Failed to set network on the target appliance', 'typical')],
+    cause='The summaries point to an IP conflict at switch-over (the source still holds the address, or another device answers on it) or a network configuration the target cannot apply. Not proven for any specific environment.',
+    resolution=['Make sure the source is shut down/released correctly and nothing else uses the address; check the port group and VLAN for the target; retry per the KB.'],
+    kbs=[kb(376335, 'vCenter upgrade fails with an error "Error: IP already exists in the network"', 'primary'), kb(369716, 'vCenter server upgrade fails in stage 2 with an error: "Failed to set network"', 'secondary')], match=r'already exists|Failed to set network', notes=CN)
+
+tpl('CT-41', 'Upgrade stage 2 fails importing Update Manager data (stale legacy records)', 'vcenter', '8.0 U2d / 9.x',
+    'Stage 2 fails with "A problem occurred while - Importing VMware vSphere Update Manager data".',
+    'mixed', ['vc.upg_stage2_cause'], [
+        (-1500, UP + 'import-upgrade-runner.log', '{t} ERROR A problem occurred while - Importing VMware vSphere Update Manager data', 'typical'),
+        (-1499, 'var/log/vmware/vmware-updatemgr/vum-server/vmware-vum-server.log', '{t} ERROR foreign key violation on vci_va_upgrade_files', 'typical')],
+    cause='The search summary describes stale legacy Update Manager records breaking a foreign-key cleanup during import (the exact KB for 9.x was not identified; the cited article is the 8.0 U2d one).',
+    resolution=['Snapshot the source first. Reset the Update Manager database on the source (this removes custom baselines and imported patches) or remove the orphaned vci_va_upgrade_files / vci_va_upgrades rows as the KB describes, then retry.'],
+    kbs=[kb(371079, 'Upgrade to vCenter 8.0 U2d fails on stage 2 with error "A problem occurred while- Importing VMware vSphere Update Manager data..."', 'primary')], match=r'Update Manager data', notes=CN)
+
+tpl('CT-42', 'vSphere HA "Agent Unreachable / Uninitialized" after a vCenter 8.0 U3 install or upgrade (certificate mode)', 'vcenter', '8.0 U3',
+    'After a vCenter 8.0 U3 install or upgrade, enabling HA fails with HA Agent unreachable or HA Agent uninitialized on one or more hosts.',
+    'mixed', ['vc.ha_unreachable'], [
+        (-1500, VPXD, '{t} error vpxd[1] [Originator@6876 sub=vpxLro] vSphere HA agent on host esx01.lab.example: HA Agent unreachable', 'typical'),
+        (-1490, 'var/run/log/fdm.log', '{t} error fdm[2111] [Originator@6876 sub=Cluster] HA Agent uninitialized', 'typical')],
+    cause='The KB summaries point to the vpxd.certmgmt.mode setting being "thumbprint" instead of "vmca", and/or stale host certificates.',
+    resolution=['Set the certificate mode to VMCA (vpxd.certmgmt.mode), refresh the host certificates, then toggle vSphere HA off and on for the cluster.'],
+    kbs=[kb(379366, 'vSphere HA fails to enable with error "HA Agent unreachable" or "HA Agent uninitialized" after vCenter install/upgrade to 8.0 U3', 'primary'), kb(392316, 'vSphere HA Configuration Fails After vCenter Server 8.0 Update 3 Upgrade with "HA Agent Unreachable."', 'secondary')], match=r'Agent (?:unreachable|uninitialized)', notes=CN)
+
+tpl('CT-43', 'vSphere HA: "agent is not reachable from vCenter Server" caused by a wrong /etc/hosts entry on the ESXi host', 'esxi', '8.0 U3',
+    'HA fails to configure on a host with The vSphere HA agent is not reachable from vCenter Server.',
+    'mixed', ['vc.ha_unreachable'], [
+        (-1500, VPXD, '{t} error vpxd[1] [Originator@6876 sub=vpxLro] The vSphere HA agent is not reachable from vCenter Server', 'typical'),
+        (-1490, 'var/run/log/vpxa.log', '{t} warning vpxa[2140] [Originator@6876 sub=vpxaNet] failed to connect to vc01.lab.example (192.0.2.99): No route to host', 'typical')],
+    cause='A static /etc/hosts entry on the ESXi host maps the vCenter FQDN to a wrong address (per the KB summary).',
+    resolution=['Remove or correct the stale vCenter entry in /etc/hosts on the host, then reconfigure vSphere HA on it.'],
+    kbs=[kb(438017, 'vSphere HA fails with error "The vSphere HA agent is not reachable from vCenter Server" due to incorrect /etc/hosts entries', 'primary')], match=r'not reachable', notes=CN)
+
+tpl('CT-44', 'vSphere HA: "Applying HA VIBs on the cluster encountered a failure" (vLCM updateManager firewall ruleset disabled)', 'esxi', '8.0 U3',
+    'Enabling HA fails with Applying HA VIBs on the cluster encountered a failure.',
+    'mixed', ['vc.ha_agent_install'], [
+        (-1500, VPXD, '{t} error vpxd[1] [Originator@6876 sub=vpxLro] Applying HA VIBs on the cluster encountered a failure.', 'typical'),
+        (-1490, HOSTD, '{t} warning hostd[2099] [Originator@6876 sub=Default] firewall ruleset updateManager is disabled', 'typical')],
+    cause='Per the KB summary the vLCM "updateManager" firewall ruleset is disabled on the hosts, which blocks HA VIB installation.',
+    resolution=['Enable the updateManager firewall ruleset on the affected hosts, then retry/Reconfigure for vSphere HA.'],
+    kbs=[kb(399646, 'The vSphere HA agent fails with the error "Applying HA VIBs on the cluster encountered a failure" in the vSphere Client', 'primary')], match=r'Applying HA VIBs', notes=CN)
+
+tpl('CT-45', 'vSphere HA: "agent on host cannot reach some management network addresses of other hosts"', 'esxi', '8.0 U3',
+    'ESXi hosts show the alert vSphere HA agent on host cannot reach some management network addresses of other hosts.',
+    'mixed', ['vc.ha_unreachable'], [
+        (-1500, 'var/run/log/fdm.log', '{t} warning fdm[2111] [Originator@6876 sub=Cluster] vSphere HA agent on host esx02.lab.example cannot reach some management network addresses of other hosts', 'typical'),
+        (-1490, 'var/run/log/fdm.log', '{t} info fdm[2111] [Originator@6876 sub=Cluster] Agent Unreachable state for host esx03.lab.example', 'typical')],
+    cause='The summaries name VLAN, firewall or partition problems on the HA agent ports (TCP/UDP 8182; also 8183, 8042 and DNS 53).',
+    resolution=['Verify the management VLAN and firewall rules on the HA ports between all hosts, then Reconfigure for vSphere HA on the host.'],
+    kbs=[kb(418585, 'ESX host shows "vSphere HA agent on host cannot reach some management network addresses of other hosts" alert', 'primary'), kb(409440, 'Troubleshooting vSphere HA Agent in Unreachable State', 'secondary')], match=r'management network addresses', notes=CN)
+
+tpl('CT-46', 'vCenter not accessible (503) after a reboot because a certificate expired', 'vcenter', '8.0 U3',
+    'After a reboot the vSphere Client and VAMI return 503 / no healthy upstream; vpxd and vpxd-svcs do not start.',
+    'mixed', ['vc.cert_expired_svc', 'vc.503'], [
+        (-1500, VMON, '{t} error vmon Service vpxd-svcs failed to start: x509: certificate has expired', 'typical'),
+        (-1490, 'var/log/vmware/envoy/envoy.log', '{t} warning envoy upstream connect error or disconnect/reset before headers: no healthy upstream', 'typical'),
+        (-1480, 'var/log/vmware/vpxd/vpxd.log', '{t} error vpxd Machine SSL certificate has expired on 2026-03-01', 'typical')],
+    cause='A required VECS certificate (Machine SSL in the KB 451480 summary) expired; services refuse to start once restarted.',
+    resolution=['Enable SSH from the appliance console if needed, check expiry with vecs-cli or the vCert tool, renew the expired certificate, check NTP and reverse DNS, and restart all services (service-control --stop --all && --start --all). Snapshot first.'],
+    kbs=[kb(344201, 'Error: "no healthy upstream" or "503 Service Unavailable" when accessing vCenter Server', 'primary'), kb(451480, 'vCenter Server VAMI 503 Error and Service Startup Failures Due to Expired SSL Certificates on vCenter 8.0.3', 'secondary')], match=r'expired|no healthy upstream', notes=CN)
+
+tpl('CT-47', 'VAMI (port 5480) returns "503 - OK": applmgmt service stopped', 'vcenter', '8.0',
+    'The vCenter Appliance Management Interface returns 503 - OK (Service Unavailable).',
+    'mixed', ['vc.service_down'], [
+        (-1500, VMON, '{t} error vmon Service applmgmt stopped unexpectedly', 'typical'),
+        (-1490, 'var/log/vmware/applmgmt/applmgmt.log', '{t} ERROR applmgmt service not running, port 5480 closed', 'typical')],
+    cause='The KB summary names the applmgmt service being stopped as the usual cause; if it will not start, certificates are the next check.',
+    resolution=['service-control --status applmgmt, then service-control --start applmgmt; if it fails to start check the certificates.'],
+    kbs=[kb(378577, 'Attempting to access the vCenter Appliance Management Interface results in a 503 - OK Error (Service Unavailable)', 'primary')], match=r'applmgmt', notes=CN)
+
+tpl('CT-48', 'VCSA boots to a black screen with a blinking cursor (filesystem corruption)', 'vcenter', '8.0',
+    'After a power-on or host crash the vCenter VM console shows only a blinking cursor and never boots.',
+    'mixed', ['vc.fsck_emergency'], [
+        (-1500, 'var/log/messages', '{s} vcsa kernel: EXT4-fs error (device dm-0): ext4_lookup:1700: inode #131073: comm systemd: deleted inode referenced', 'typical')],
+    cause='The KB summary names filesystem corruption of the appliance as the cause.',
+    resolution=['Snapshot or back up the VCSA first (connect directly to the ESXi host if it runs on a host it manages). Reboot, edit the GRUB entry and add the forced fsck parameters to the linux line, then boot.'],
+    kbs=[kb(413871, 'VMware vCenter Server fails to boot and shows a black screen with a blinking/flashing cursor', 'primary')], match=r'EXT4-fs error', notes=CN)
+
+tpl('CT-49', 'VM registration / power-on hangs after an ESXi boot-drive failure: orphaned .lck files', 'esxi', '8.0 U3',
+    'After an ESXi host lost its boot drive, registering or powering on its VMs hangs from vCenter.',
+    'mixed', ['esx.vm_open_disk'], [
+        (-1500, HOSTD, '{t} error hostd[2099] [Originator@6876 sub=Vmsvc.vm:/vmfs/volumes/ds01/app01/app01.vmx] Failed to start the virtual machine. Module Disk power on failed. Cannot open the disk \'/vmfs/volumes/ds01/app01/app01.vmdk\' or one of the snapshot disks it depends on. 16 (Device or resource busy)', 'typical')],
+    cause='Per the KB summary: orphaned lock files left by the failed host.',
+    resolution=['Log in to a healthy ESXi host (SSH or Browse Datastore), find and move the *.lck files in the VM folder, then register and power on the VM from that host. Back up first.'],
+    kbs=[kb(435528, 'VM registration or power-on hangs in vCenter due to orphaned locks after ESXi boot drive failure', 'primary')], match=r'Cannot open the disk', notes=CN)
+
 # ============================================================================= not templated (kept in the report only)
 out = dict(version=1,
-           source='ANONYMISED templates derived from %d resolved support case reports. Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).' % 42,
+           source='ANONYMISED templates derived from %d resolved support case reports (CT-01..CT-36) plus synthetic scenarios built from public KB/community summaries (CT-37 onwards, marked in their notes). Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).' % 42,
            reviewed_cases=42,
            templates=T)
 path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lvx', 'case_templates.json')
