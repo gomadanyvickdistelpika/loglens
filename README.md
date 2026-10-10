@@ -1,5 +1,10 @@
 # LogLens - targeted VMware log analysis
 
+> **Unofficial project.** LogLens is an independent, community tool. It is not affiliated with, endorsed by or supported by Broadcom or VMware.
+> KB links come from public search results (titles and URLs only; article text was not read) and may be out of date. Always verify a finding against the raw log and the vendor's own documentation.
+> Case templates are anonymised, synthetic scenarios (invented hosts, 192.0.2.x addresses); no real customer logs or data are included. Never upload customer logs to a tool you do not control.
+
+
 Same job as the Lumberjack Log Viewer + TDLog + GSS Toolbox workflow, but **driven by the customer's
 issue and timestamp**: everything outside the incident window is treated as noise and findings are
 ranked by how well they fit the reported symptom.
