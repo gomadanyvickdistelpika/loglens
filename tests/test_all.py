@@ -214,6 +214,35 @@ class AnalysisBehaviour(unittest.TestCase):
 
 
 class NoiseTests(unittest.TestCase):
+    def test_regex_prefilters_preserve_findings(self):
+        anchor = parse_user_time('2026-10-28T09:00:00Z')
+        host_messages = [
+            'Host esx01 is not re\u017fponding',
+            'missing heartbeats',
+            'state changed to NO_RESPONSE',
+            'No response has been received',
+            'The Connection was broken',
+            'HostCommunication reported an error',
+        ]
+        sso_messages = [
+            'SSO fa\u0131led',
+            'InvalidCredentials',
+            'SAML token has expired',
+            'Failed to validate a token',
+        ]
+        with tempfile.TemporaryDirectory(prefix='lvx_prefilter_') as folder:
+            log = os.path.join(folder, 'vpxd.log')
+            with open(log, 'w', encoding='utf-8') as f:
+                f.write('2026-10-28T09:00:00Z debug completedRequests=23 host=esx01\n')
+                for message in host_messages + sso_messages:
+                    f.write('2026-10-28T09:00:00Z error ' + message + '\n')
+                f.write('2026-10-28T09:00:00Z error operation \u017fuccessfully completed\n')
+            bundle = open_bundle('prefilter', folder)
+            result = Analyzer(bundle, anchor=anchor).run()
+
+        findings = {f['id']: f['count'] for f in result['findings']}
+        self.assertEqual(findings, {'vc.host_disc': len(host_messages), 'vc.sso': len(sso_messages)})
+
     def test_advisory_and_chronic_separated(self):
         d = tempfile.mkdtemp(prefix='lvn_')
         try:

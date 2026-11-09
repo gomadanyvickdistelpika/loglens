@@ -6,12 +6,15 @@ import re
 R = []
 
 
-def rule(id, title, product, severity, topics, kw, pattern, advice, kb=None, search=None, files=None, symptom=False, root_for=()):
+def rule(id, title, product, severity, topics, kw, pattern, advice, kb=None, search=None,
+         files=None, symptom=False, root_for=(), required_kws=()):
     """symptom=True marks a downstream effect or locator (503, 'stage failed'): ranked just below an earlier, likelier cause.
-    root_for lists rule ids this finding is an early warning of: if one of them follows later, this ranks above it."""
+    root_for lists rule ids this finding is an early warning of: if one of them follows later, this ranks above it.
+    If supplied, required_kws must cover every ASCII regex alternative."""
     R.append(dict(id=id, title=title, product=product, severity=severity, topics=topics,
                   kw=kw.lower(), rx=re.compile(pattern, re.I), advice=advice, kb=kb,
-                  search=search or title, files=re.compile(files, re.I) if files else None, symptom=symptom, root_for=tuple(root_for)))
+                  search=search or title, files=re.compile(files, re.I) if files else None, symptom=symptom, root_for=tuple(root_for),
+                  required_kws=required_kws))
 
 
 # ---------------- ESXi ----------------
@@ -120,11 +123,14 @@ rule('vc.db', 'vCenter: database connectivity / capacity problem', 'vcenter', 'c
 rule('vc.host_disc', 'vCenter: ESXi host disconnected / not responding', 'vcenter', 'high', ['host-connection', 'network'],
      'host', r'Host .{0,80}(?:is not responding|disconnected|got disconnected)|missing heartbeats|state changed to NO_RESPONSE|No response has been received|The Connection was broken|HostNotResponding|Cannot (?:connect|contact) (?:to )?host|ESX unresponsive|HostCommunication.{0,40}(?:error|fail)|Failed to connect to (?:host|ESX)|host (?:is )?unreachable',
      'vCenter lost management connection to a host. Check the host-side hostd/vpxa, management network, DNS and port 443/902.',
-     search='ESXi host disconnected from vCenter not responding')
+     search='ESXi host disconnected from vCenter not responding',
+     required_kws=('responding', 'disconnect', 'heartbeat', 'no_response', 'no response',
+                   'connect', 'contact', 'unresponsive', 'hostcommunication', 'unreachable'))
 rule('vc.sso', 'SSO/STS: authentication or token failures', 'vcenter', 'high', ['auth', 'services', 'certificate'],
      'sso', r'(?:sts|sso|vmdird|lookupsvc|IdentityManager).{0,120}(?:fail|invalid|exception|denied|unable)|Invalid credentials|InvalidCredentials|Unable to authenticate|SAML token.{0,40}(?:invalid|expired)|Failed to (?:acquire|validate) (?:a )?token|Authentication failed',
      'Login/token problem. Check STS signing certificate validity, identity source reachability (AD/LDAP), time sync and vmdird health.',
-     search='vCenter SSO login fails STS invalid credentials')
+     search='vCenter SSO login fails STS invalid credentials',
+     required_kws=('fail', 'invalid', 'exception', 'denied', 'unable', 'expired'))
 rule('vc.ls_client', 'vCenter: Lookup Service client adapter exception', 'vcenter', 'high', ['services', 'upgrade'],
      'ls client', r'Caught exception while creating LS client adapter',
      'Seen in the supplied TDLog sample linked to the KB below (vpxd cannot reach the Lookup Service, e.g. during upgrade or after cert/host-name changes).',
