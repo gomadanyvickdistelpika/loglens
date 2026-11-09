@@ -266,6 +266,8 @@ class Analyzer:
                 self.stats['files_outside_window'] += 1
                 self.stats['bytes_skipped_outside_window'] += os.path.getsize(full)
                 return
+        file_rules = [(r, r.get('required_kws', ())) for r in rules
+                      if r['files'] is None or r['files'].search(rel)]
         prev_ts, prev_level = None, 'info'
         ctx = deque(maxlen=2)
         dated = 0
@@ -311,15 +313,18 @@ class Analyzer:
             low = line.lower()
             hit = False
             key = None
-            benign = BENIGN.search(line) is not None
+            # Unicode case-insensitive regexes can match spellings that ASCII literals miss.
+            ascii_line = line.isascii()
+            maybe_benign = not ascii_line or 'error' in low or 'fail' in low or 'successfully' in low
+            benign = maybe_benign and BENIGN.search(line) is not None
             if not benign:
-                for r in rules:
-                    if r['files'] is not None and not r['files'].search(rel):
-                        continue
+                for r, required_kws in file_rules:
                     for kw in r['kws']:
                         if kw in low:
                             break
                     else:
+                        continue
+                    if required_kws and ascii_line and not any(kw in low for kw in required_kws):
                         continue
                     if r['rx'].search(line):
                         hit = True
