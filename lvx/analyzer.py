@@ -5,7 +5,7 @@ import re
 import time
 from collections import Counter, deque
 
-from . import kb, packs, reports
+from . import kb, packs, reports, vtlog, vtoolbox
 from .bundle import open_text, looks_binary
 from .rules import R
 from .timeparse import parse_ts, fmt_ts
@@ -99,7 +99,7 @@ def issue_topics(issue):
 # ----------------------------------------------------------------------------- file selection
 _LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning|smlog(?:\.\d+)?)(?:\.gz)?$', re.I)
 _SKIP_DIR = re.compile(r'(?:^|/)(?:commands|etc|proc|sys|usr|lib|bin|sbin|tdlog/cert|reconciled|python|configuration|schema)(?:/|$)', re.I)
-_SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report)', re.I)
+_SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report|vates-?toolbox)', re.I)
 
 
 def is_log_candidate(rel):
@@ -269,6 +269,8 @@ class Analyzer:
         self.nb = 60
         self.bsize = max(60, (self.end - self.start) // self.nb + 1)
         self.ref_ts = (max(tails) if tails else self.anchor) + 86400
+        self.ref_year = ref_year
+        self._prod_set = prod_set
 
         n = len(cand)
         for i, e in enumerate(cand):
@@ -285,11 +287,29 @@ class Analyzer:
                     reps.append(rep)
             except Exception as ex:
                 self.skipped.append((e['path'], 'report: %s' % ex))
+        try:
+            reps += self._vates_reports(files, cand)
+        except Exception as ex:                       # the extra reports are a bonus: never let them break the analysis
+            self.skipped.append(('vates reports', 'error: %s' % ex))
         self.progress(0.95, 'Ranking')
         out = self._build(reps, cand, files)
         out['stats']['seconds'] = round(time.time() - t0, 2)
         self.progress(1.0, 'Done')
         return out
+
+    def _vates_reports(self, files, cand):
+        """Vates Toolbox (health modules from commands/ output, one per host / appliance) + VTLog (signature history over the whole bundle)."""
+        if not packs.enabled('vates'):
+            return []
+        has_vates = any(packs.group(p) == 'vates' for p in self._prod_set)
+        tb = vtoolbox.from_bundle(self.bundle, files, ref=self.anchor) if has_vates else []
+        if not has_vates and not tb:
+            return []
+        plain = [(e['path'], self.bundle.resolve(e['path'])) for e in cand if not e['path'].lower().endswith('.gz') and not _SKIP_NAME.search(os.path.basename(e['path']))]
+        vt = vtlog.scan(plain, lambda rel: [r for r in self._applicable({classify_product(rel)} | self._prod_set) if packs.group(r['product']) == 'vates'],
+                        self.ref_year, self.start, self.end)
+        vt['sections']['certificates'] = vtlog.certificates(tb)
+        return tb + ([vt] if vt['sections']['signatures'] or vt['sections']['certificates'] else [])
 
     def _scan(self, rel, rules):
         full = self.bundle.resolve(rel)
@@ -611,7 +631,7 @@ class Analyzer:
                 else:
                     topics = set(rf['topics'])
                     # map toolbox plugin spaces onto topics
-                    sp = {'storage': 'storage', 'host': 'hardware', 'ha': 'ha', 'vsan': 'vsan', 'vm': 'vm'}
+                    sp = {'storage': 'storage', 'host': 'hardware', 'ha': 'ha', 'vsan': 'vsan', 'vm': 'vm', 'services': 'services', 'security': 'auth'}
                     mapped = {sp.get(t, t) for t in topics}
                     rel = 25 if (mapped & self.topics) else 0
                     rf['score'] = round(SEV_BASE[rf['severity']] + 12 + rel, 1)
@@ -621,7 +641,12 @@ class Analyzer:
         for d in items + advisories:
             self._attach_kb(d)
         for rf in rep_items:
-            rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
+            if rf.get('rule'):                        # Vates Toolbox / VTLog items carry the rule they relate to: attach the Vates KB research
+                rf['kb_research'] = kb.research(rf['rule'], rf['title'] + ' ' + (rf.get('detail') or ''), None)
+            elif rf['source'] in (vtoolbox.BRAND, vtlog.BRAND):
+                rf['kb_research'] = kb.research(None, '', None, kind='generic', vendor='vates')
+            else:
+                rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
         for d in items:
             d.pop('_first', None)
         # timeline

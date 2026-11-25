@@ -89,6 +89,8 @@ class Estate:
             ts = timegm(time.gmtime(self.T - 12 * 3600)[:3] + (1, 0, 0)) + day * 86400
             if self.start < ts < self.end:
                 self.raw(XOA, 'xo/journalctl-xo-server.txt', ts, '%s %s xo-server[772]: %s xo:backups:worker INFO job "nightly-prod" completed: 6/6 VMs backed up, 0 failed' % (stamp(ts), XOA, iso(ts, r)))
+        for k in range(2):                                              # a transient disk error ~28 h before the incident: outside the window, a precursor for VTLog
+            self.log(H2, 'var/log/kern.log', self.start + 2 * 3600 + k * 30, 'kernel: [3302210.%06d] Buffer I/O error on dev sdc, logical block 1180, async page read' % (114477 + k))
         self.log(XOA, 'xo/xoa-updater.log', self.start + 600, 'xoa-updater: INFO channel stable: xen-orchestra 5.%d is up to date' % 92)
         for h in (H1, H2):
             self.log(h, 'var/log/yum.log', self.start - 86400 * 9, 'Updated: xapi-core-%s-1.xcpng8.2.x86_64' % BUILD)
@@ -98,18 +100,22 @@ class Estate:
     def default_commands(self):
         T = self.T
         for h in (H1, H2):
-            self.cmds[(h, 'df_-h')] = ('Filesystem      Size  Used Avail Use%% Mounted on\n/dev/md127       18G  6.1G   11G  36%% /\n'
-                                       '/dev/sda5       3.9G  1.2G  2.5G  33%% /var/log\ntmpfs           3.2G     0  3.2G   0%% /dev/shm\n')
+            self.cmds[(h, 'df_-h')] = ('Filesystem      Size  Used Avail Use% Mounted on\n/dev/md127       18G  6.1G   11G  36% /\n'
+                                       '/dev/sda5       3.9G  1.2G  2.5G  33% /var/log\ntmpfs           3.2G     0  3.2G   0% /dev/shm\n')
             self.cmds[(h, 'free_-m')] = '              total        used        free      shared  buff/cache   available\nMem:           4096        1544         410          20        2141        2344\nSwap:          1023           0        1023\n'
             self.cmds[(h, 'uptime')] = ' %s up 41 days,  6:12,  1 user,  load average: 0.31, 0.28, 0.25\n' % time.strftime('%H:%M:%S', time.gmtime(T))
-            self.cmds[(h, 'xe_host-list')] = 'uuid ( RO)                : %s\n          name-label ( RW): %s\n    software-version (MRO): product_version: %s; xapi: 1.20\n' % (('a1' if h == H1 else 'b2') * 16 + '-0000', h, BUILD)
+            self.cmds[(h, 'xe_host-list')] = ''.join('uuid ( RO)                : %s\n          name-label ( RW): %s\n    software-version (MRO): product_version: %s; xapi: 1.20\n\n' % (('a1' if x == H1 else 'b2') * 4 + '-0000', x, BUILD) for x in (H1, H2))
             self.cmds[(h, 'xe_pool-list')] = 'uuid ( RO)           : 9c1d2e3f-0a1b-4c2d-8e3f-4a5b6c7d8e9f\n          name-label ( RW): Brightwater-DUB\n    master ( RO): %s\n            ha-enabled ( RO): true\n' % H1
             self.cmds[(h, 'xe_sr-list')] = ''.join('uuid ( RO)                : %s\n          name-label ( RW): %s\n    physical-utilisation ( RO): %s\n         physical-size ( RO): %s\n' % (u, SR_NAMES[u], a, b)
                                                  for u, a, b in ((SR_ISCSI, '1.9TiB', '3.4TiB'), (SR_NFS, '2.2TiB', '5.0TiB'), (SR_LOCAL, '210GiB', '894GiB')))
             self.cmds[(h, 'xe_vm-list')] = ''.join('name-label ( RW): %s\n    power-state ( RO): running\n    resident-on ( RO): %s\n' % (v, vh) for v, vh in VMS)
             self.cmds[(h, 'multipath_-ll')] = '3600601604d3f4e00aa11bb22cc33dd44 dm-3 SAN,PWR-LUN3\nsize=3.4T features=\'1 queue_if_no_path\' hwhandler=\'1 alua\' wp=rw\n|-+- policy=\'service-time 0\' prio=50 status=active\n| `- 3:0:0:3 sdc 8:32 active ready running\n`-+- policy=\'service-time 0\' prio=10 status=enabled\n  `- 4:0:0:3 sdd 8:48 active ready running\n'
+            self.cmds[(h, 'chronyc_tracking')] = 'Reference ID    : C0000201 (ntp1.brightwater.example)\nStratum         : 3\nSystem time     : 0.000041 seconds fast of NTP time\nLeap status     : Normal\n'
+            self.cmds[(h, 'systemctl_is-active_xapi')] = 'active\n'
+            self.cmds[(h, 'openssl_x509_enddate')] = 'notAfter=%s\n' % time.strftime('%b %e %H:%M:%S %Y GMT', time.gmtime(T + 200 * 86400))
             self.cmds[(h, 'ip_-br_addr')] = 'lo UNKNOWN 127.0.0.1/8\nxenbr0 UP %s/24\nbond0 UP\n' % IP[h]
         self.cmds[(XOA, 'df_-h')] = 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/xvda1       30G   11G   18G  38% /\n/dev/xvdb        200G   74G  117G  39% /var/lib/xo-server\n'
+        self.cmds[(XOA, 'systemctl_is-active_xo-server')] = 'active\n'
         self.cmds[(XOA, 'free_-m')] = '              total        used        free\nMem:           4096        1822         902\n'
         self.cmds[(XOA, 'uptime')] = ' %s up 12 days,  3:44,  load average: 0.12, 0.10, 0.09\n' % time.strftime('%H:%M:%S', time.gmtime(T))
 
@@ -187,6 +193,7 @@ def case_host_disk_full(e):
     e.log(H1, 'var/log/daemon.log', T + 120, 'systemd: xapi.service: start request repeated too quickly, refusing to start.')
     e.raw(XOA, 'xo/journalctl-xo-server.txt', T + 45, '%s %s xo-server[772]: %s xo:xo-server WARN host %s disconnected: connect ECONNREFUSED %s:443' % (stamp(T + 45), XOA, iso(T + 45, e.rnd), H1, IP[H1]))
     e.cmds[(H1, 'df_-h')] = e.cmds[(H1, 'df_-h')].replace('/dev/sda5       3.9G  1.2G  2.5G  33%', '/dev/sda5       3.9G  3.9G     0 100%')
+    e.cmds[(H1, 'systemctl_is-active_xapi')] = 'failed\n'
 
 
 def case_nfs_stall(e):
@@ -204,6 +211,7 @@ def case_nfs_stall(e):
         e.log(H1, 'var/log/xensource.log', T + 200 + k, 'xapi: [error|%s|6100 |VM.pause|xapi] VM %s i/o to NFS-NAS01-VMs is stalled' % (H1, v))
     e.raw(XOA, 'xo/journalctl-xo-server.txt', T + 600, '%s %s xo-server[772]: %s xo:backups:worker ERROR backup job "nightly-prod" failed: remote "nas01-backups" unreachable' % (stamp(T + 600), XOA, iso(T + 600, e.rnd)))
     e.log(H1, 'var/log/kern.log', T + 540, 'kernel: [3750560.000102] nfs: server %s OK' % NAS)
+    e.cmds[(H2, 'openssl_x509_enddate')] = 'notAfter=%s\n' % time.strftime('%b %e %H:%M:%S %Y GMT', time.gmtime(T + 9 * 86400))      # unrelated to the outage, but the Toolbox should flag it
 
 
 def case_dom0_oom(e):
@@ -231,6 +239,7 @@ def case_xoa_disk_full(e):
     e.log(XOA, 'xo/xoa-updater.log', T + 3600, 'xoa-updater: ERROR Cannot write update: ENOSPC no space left on device')
     e.log(XOA, 'var/log/syslog', T + 30, 'systemd[1]: xo-server.service: Failed to write journal: No space left on device')
     e.cmds[(XOA, 'df_-h')] = e.cmds[(XOA, 'df_-h')].replace('/dev/xvdb        200G   74G  117G  39%', '/dev/xvdb        200G  200G     0 100%')
+    e.cmds[(XOA, 'systemctl_is-active_xo-server')] = 'failed\n'
 
 
 CASES = [

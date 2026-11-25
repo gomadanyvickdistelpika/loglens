@@ -37,6 +37,10 @@ def main(argv=None):
     a.add_argument('-o', '--output')
     a.add_argument('--redact', action='store_true', help='mask emails, secrets, links, IPs (official KB links are kept)')
     a.add_argument('--redact-term', action='append', default=[], help='also mask this literal (customer, host or VM name); repeatable')
+    tb = sub.add_parser('toolbox', help='Vates Toolbox: health report for XCP-ng / Xen Orchestra from a bundle\'s commands/ output (text, attachable to a ticket)')
+    tb.add_argument('bundle')
+    tb.add_argument('--time', default='', help='reference time for certificate expiry (default: now)')
+    tb.add_argument('-o', '--output')
     tp = sub.add_parser('templates', help='anonymised resolved-case templates: list | show ID | build ID OUT_DIR')
     tp.add_argument('action', choices=['list', 'show', 'build'])
     tp.add_argument('id', nargs='?')
@@ -46,6 +50,8 @@ def main(argv=None):
         return _templates(args)
     if args.cmd == 'live':
         return _live(args)
+    if args.cmd == 'toolbox':
+        return _toolbox(args)
     if args.cmd == 'serve' or args.cmd is None:
         from .server import serve
         host = getattr(args, 'host', '127.0.0.1')
@@ -121,6 +127,30 @@ def _live(args):
         else:
             shutil.rmtree(work, ignore_errors=True)
     return 0 if s.state != 'error' else 1
+
+
+def _toolbox(args):
+    from . import vtoolbox
+    from .bundle import open_bundle
+    from .timeparse import parse_user_time
+    b = open_bundle('toolbox', args.bundle)
+    try:
+        reps = vtoolbox.from_bundle(b, b.list_files(), ref=parse_user_time(args.time) or None)
+    finally:
+        b.close()
+    if not reps:
+        print('No XCP-ng / Xen Orchestra command output (commands/*.txt) found in %s' % args.bundle, file=sys.stderr)
+        return 1
+    out = '\n'.join(vtoolbox.render(r) for r in reps)
+    bad = sum(1 for r in reps for m in r['modules'] if vtoolbox.ALERT_RANK[m['alert']] >= 2)
+    if args.output:
+        with open(args.output, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(out)
+        print('wrote %s (%d report(s), %d module(s) need attention)' % (args.output, len(reps), bad))
+    else:
+        sys.stdout.reconfigure(encoding='utf-8')
+        print(out)
+    return 0
 
 
 def _templates(args):

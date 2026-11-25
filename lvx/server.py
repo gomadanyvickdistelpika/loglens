@@ -12,7 +12,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
-from . import __version__, export, live, live_profiles as profiles, viewer
+from . import __version__, export, live, live_profiles as profiles, packs, viewer
 from .analyzer import Analyzer
 from .bundle import open_bundle, BundleError
 from .timeparse import parse_user_time
@@ -100,7 +100,7 @@ def make_handler(state):
                 if path.startswith('/api/live'):
                     return self._live(method, path, qs)
                 if route == ('GET', '/api/health'):
-                    return _json(self, 200, {'ok': True, 'version': __version__})
+                    return _json(self, 200, {'ok': True, 'version': __version__, 'packs': list(packs.ENABLED)})
                 if route == ('POST', '/api/upload'):
                     return self._upload(qs)
                 if route == ('POST', '/api/open'):

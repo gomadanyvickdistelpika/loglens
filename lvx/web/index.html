@@ -292,7 +292,7 @@ function renderFind() {
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
   if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
-  if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
+  if (r.report_findings.length) { h += '<h2>From ' + BRAND.reports + ' reports</h2>';
     r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
       + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }
   $('#pane-find').innerHTML = h;
@@ -316,9 +316,10 @@ function renderTL() {
   $('#pane-tl').innerHTML = h;
 }
 function renderRep() {
-  const reps = S.result.reports; if (!reps.length) { $('#pane-rep').innerHTML = '<div class="msg">No GSS Toolbox or TDLog report found in this bundle. Open one with the drop zone (.txt or .pdf).</div>'; return; }
+  const reps = S.result.reports; if (!reps.length) { $('#pane-rep').innerHTML = '<div class="msg">' + BRAND.none + '</div>'; return; }
   let h = '';
   reps.forEach(r => {
+    if (r.kind === 'vtoolbox' || r.kind === 'vtlog') { h += renderVates(r); return; }
     h += '<div class="banner"><b>' + (r.kind === 'toolbox' ? 'GSS Toolbox' : 'TDLog') + '</b> &mdash; ' + esc(r.file) + '</div>';
     if (r.kind === 'toolbox') { const m = r.meta; h += '<div class="meta">' + ['hostname', 'product', 'version', 'build', 'hardware', 'uptime', 'log_date'].filter(k => m[k]).map(k => k + ': ' + esc(m[k])).join(' &middot; ') + '</div>';
       h += '<table><tr><th>Module</th><th>Alert</th><th>Description</th><th>KB</th><th>Status</th></tr>' + r.modules.filter(x => x.alert !== 'info').map(x => '<tr' + (x.stale ? ' style="opacity:.5"' : '') + '><td>' + esc(x.module) + '</td><td>' + esc(x.alert) + '</td><td>' + esc(x.description) + '</td><td>' + esc(x.kb || '') + '</td><td>' + (x.stale ? 'stale (events older than window)' : 'relevant') + '</td></tr>').join('') + '</table>'; }
@@ -442,6 +443,36 @@ async function renderCasePack() {
   } catch (e) { /* case pack is optional */ }
 }
 const _render = render; render = function () { _render(); fixReportLinks(); renderCasePack(); };
+
+// ---------- Vates Toolbox / VTLog (Vates counterpart of GSS Toolbox / TDLog)
+const ALERT_CLS = {critical: 'color:var(--crit);font-weight:600', warning: 'color:var(--warn,#9a6700);font-weight:600'};
+function renderVates(r) {
+  let h = '<div class="banner"><b>' + esc(r.brand) + '</b> &mdash; ' + esc(r.file) + '</div>';
+  if (r.kind === 'vtoolbox') {
+    const m = r.meta; h += '<div class="meta">' + ['hostname', 'product', 'version', 'uptime', 'log_date'].filter(k => m[k]).map(k => k + ': ' + esc(m[k])).join(' &middot; ') + ' &middot; ' + (m.plugins_run || 0) + ' checks, ' + (m.plugins_matched || 0) + ' need attention</div>';
+    h += '<table><tr><th>Module</th><th>Alert</th><th>Description</th><th>Resolution</th></tr>' + r.modules.map(x => '<tr' + (x.alert === 'ok' || x.alert === 'info' ? ' style="opacity:.6"' : '') + '><td>' + esc(x.module) + '<div class="meta">' + esc(x.space) + '</div></td><td style="' + (ALERT_CLS[x.alert] || '') + '">' + esc(x.alert) + '</td><td>' + esc(x.description)
+      + (x.details && x.alert !== 'ok' ? '<details><summary class="meta">details</summary><pre>' + esc(x.details) + '</pre></details>' : '') + '</td><td>' + esc(x.resolution || '') + '</td></tr>').join('') + '</table>';
+  } else {
+    const s = r.sections, m = r.meta || {};
+    h += '<div class="meta">History scanned over ' + (m.span_days || '?') + ' day(s), ' + esc(m.bundle_start || '') + ' &rarr; ' + esc(m.bundle_end || '') + '. A signature outside the incident window is a precursor or stale.</div>';
+    h += '<h2>Signature history</h2><table><tr><th>Signature</th><th>Matches</th><th>Days</th><th>First / last</th><th>Main file</th><th>Status</th></tr>' + s.signatures.map(x => '<tr' + (x.in_window ? '' : ' style="opacity:.5"') + '><td>' + esc(x.title) + '<div class="meta">' + esc(x.rule) + '</div>'
+      + (x.evidence.length ? '<details><summary class="meta">sample lines</summary><pre>' + esc(x.evidence.join('\n')) + '</pre></details>' : '') + '</td><td>' + x.count + '</td><td>' + x.days_hit + ' of ' + x.days_total + '</td><td>' + esc((x.first || '') + ' / ' + (x.last || '')) + '</td><td>' + esc(x.file) + '</td><td>' + (x.in_window ? 'in window' : 'outside window') + '</td></tr>').join('') + '</table>';
+    if (s.certificates.length) h += '<h2>Certificates</h2><table><tr><th>Host</th><th>State</th><th>Alert</th></tr>' + s.certificates.map(c => '<tr><td>' + esc(c.subject) + '</td><td>' + esc(c.description) + '</td><td style="' + (ALERT_CLS[c.alert] || '') + '">' + esc(c.alert) + '</td></tr>').join('') + '</table>';
+  }
+  return h;
+}
+let BRAND = {tab: 'Toolbox / TDLog', reports: 'GSS Toolbox / TDLog', none: 'No GSS Toolbox or TDLog report found in this bundle. Open one with the drop zone (.txt or .pdf).'};
+(async function brand() {
+  try {
+    const h = await api('/api/health');
+    if (h.packs && h.packs.indexOf('vmware') < 0) {            // Vates-only build: no GSS Toolbox / TDLog, show the Vates counterparts
+      BRAND = {tab: 'Vates Toolbox / VTLog', reports: 'Vates Toolbox / VTLog', none: 'No Vates Toolbox data in this bundle (it needs commands/*.txt output such as df, free, xe sr-list) and no signature history.'};
+      document.querySelector('#tabs button[data-t="rep"]').textContent = BRAND.tab;
+      const d = document.querySelector('#drop small'); if (d) d.innerHTML = '.zip .tgz .tar.gz .log .gz &middot; XCP-ng xen-bugtool, XO journalctl';
+      document.querySelector('#pane-rep').innerHTML = '<div class="msg">' + BRAND.none + '</div>';
+    }
+  } catch (e) { /* default labels */ }
+})();
 </script>
 </body>
 </html>

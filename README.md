@@ -4,6 +4,7 @@
 > KB links come from public search results (titles and URLs only; article text was not read) and may be out of date. Always verify a finding against the raw log and the vendor's own documentation.
 
 **Two rule packs, one engine.** `vmware` (ESXi, vCenter, SDDC: 63 rules, Broadcom KB, 49 case templates) and `vates` (XCP-ng, Xen Orchestra: 25 rules, public Vates/XCP-ng pages, 19 scenarios). The product of each file is detected automatically, so a mixed bundle works. `LVX_PACKS=vates` (or `vmware`) gives a single-family build; this replaces the separate `loglens-vates` project.
+The VMware pack reads GSS Toolbox and TDLog reports; the Vates pack has its own counterparts, **Vates Toolbox** (health modules from `commands/` output) and **VTLog** (signature history and certificates), built in - see [docs/VATES_TOOLBOX.md](docs/VATES_TOOLBOX.md).
 > Case templates are anonymised, synthetic scenarios (invented hosts, 192.0.2.x addresses); no real customer logs or data are included. Never upload customer logs to a tool you do not control.
 
 

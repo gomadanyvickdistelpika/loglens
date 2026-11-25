@@ -120,7 +120,7 @@ def to_markdown(res, case_pack=None):
         for s in res['sequence']:
             L.append('- %s - %s' % (s['time'], s['title']))
     if res.get('report_findings'):
-        L += ['', '## GSS Toolbox / TDLog findings']
+        L += ['', '## %s findings' % ' / '.join(dict.fromkeys(rf['source'] for rf in res['report_findings']))]
         for rf in res['report_findings']:
             L.append('- [%s] %s%s - score %s%s' % (rf['source'], rf['title'], ' (KB %s)' % rf['kb'] if rf.get('kb') else '',
                                                    rf['score'], ' **stale - outside window**' if rf.get('stale') else ''))

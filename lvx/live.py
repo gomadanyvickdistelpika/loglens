@@ -38,12 +38,14 @@ PRODUCTS = {
     'xcpng': dict(
         label='XCP-ng host',
         logs=['/var/log/xensource.log', '/var/log/SMlog', '/var/log/daemon.log', '/var/log/kern.log', '/var/log/xha.log', '/var/log/messages'],
-        commands={'df_-h': 'df -h', 'uptime': 'uptime', 'xe_sr-list': 'xe sr-list params=name-label,physical-size,physical-utilisation',
-                  'xe_pool-list': 'xe pool-list params=name-label,master'}),
+        commands={'df_-h': 'df -h', 'free_-m': 'free -m', 'uptime': 'uptime', 'xe_sr-list': 'xe sr-list params=name-label,physical-size,physical-utilisation',
+                  'xe_pool-list': 'xe pool-list params=name-label,master,ha-enabled', 'xe_host-list': 'xe host-list params=name-label,software-version',
+                  'multipath_-ll': 'multipath -ll', 'chronyc_tracking': 'chronyc tracking', 'systemctl_is-active_xapi': 'systemctl is-active xapi',
+                  'openssl_x509_enddate': 'openssl x509 -enddate -noout -in /etc/xensource/xapi-ssl.pem'}),
     'xo': dict(
         label='Xen Orchestra (XOA / from sources)',
         logs=[], journal=['xo-server', 'xo-proxy', 'xo-updater'],
-        commands={'df_-h': 'df -h', 'uptime': 'uptime'}),
+        commands={'df_-h': 'df -h', 'free_-m': 'free -m', 'uptime': 'uptime', 'systemctl_is-active_xo-server': 'systemctl is-active xo-server'}),
 }
 ALLOWED_PREFIXES = ('/var/log/', '/var/run/log/', '/storage/log/', '/scratch/log/')
 PATH_RX = re.compile(r'^/[A-Za-z0-9._/@+-]{1,300}$')
@@ -322,6 +324,7 @@ class LiveSession:
         self._stop = threading.Event()
         self._dirty = True
         self._last_analysis = 0.0
+        self._last_snapshot = 0.0
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     # -- helpers
@@ -354,6 +357,7 @@ class LiveSession:
             with open(os.path.join(d, fname + '.txt'), 'wb') as f:
                 f.write(out)
         self._dirty = True
+        self._last_snapshot = time.time()
 
     def poll_once(self):
         nonce = uuid.uuid4().hex[:16]
@@ -417,6 +421,8 @@ class LiveSession:
             self.snapshot_commands()
             while not self._stop.is_set():
                 try:
+                    if time.time() - self._last_snapshot >= 300:        # refresh df / memory / SR space / services for the Vates Toolbox
+                        self.snapshot_commands()
                     got = self.poll_once()
                     self._dirty = self._dirty or got > 0
                     if self._dirty and (time.time() - self._last_analysis >= self.interval or self.result is None):
