@@ -10,9 +10,9 @@ import time
 import traceback
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
-from . import __version__, export, viewer
+from . import __version__, export, live, live_profiles as profiles, viewer
 from .analyzer import Analyzer
 from .bundle import open_bundle, BundleError
 from .timeparse import parse_user_time
@@ -30,6 +30,8 @@ class State:
         self.roots = [os.path.realpath(p) for p in os.environ.get('LVX_ROOTS', '').split(os.pathsep) if p]
         self.token = os.environ.get('LVX_TOKEN') or None
         self.allow_open = os.environ.get('LVX_ALLOW_OPEN', '1') != '0'
+        self.live_enabled = os.environ.get('LVX_LIVE') == '1'
+        self.live = {}
 
     def path_allowed(self, p):
         if not self.allow_open:
@@ -40,6 +42,8 @@ class State:
         return any(rp == r or rp.startswith(r + os.sep) for r in self.roots)
 
     def cleanup(self):
+        for s in list(self.live.values()):
+            s.stop()
         for b in list(self.bundles.values()):
             b.close()
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -93,6 +97,8 @@ def make_handler(state):
                 if not self._auth(qs):
                     return _json(self, 401, {'error': 'unauthorized'})
                 route = (method, path)
+                if path.startswith('/api/live'):
+                    return self._live(method, path, qs)
                 if route == ('GET', '/api/health'):
                     return _json(self, 200, {'ok': True, 'version': __version__})
                 if route == ('POST', '/api/upload'):
@@ -128,7 +134,7 @@ def make_handler(state):
                     return _json(self, 200, {k: v for k, v in j.items() if k != 'thread'})
                 m = re.match(r'^/api/report/([\w-]+)\.(md|json|html)$', path)
                 if m and method == 'GET':
-                    return self._report(m.group(1), m.group(2))
+                    return self._report(m.group(1), m.group(2), qs)
                 return _json(self, 404, {'error': 'not found'})
             except KeyError as e:
                 _json(self, 404, {'error': str(e).strip("'\"")})
@@ -151,6 +157,68 @@ def make_handler(state):
 
         def do_DELETE(self):
             self._dispatch('DELETE')
+
+        # ---- live SSH collection (opt-in: LVX_LIVE=1 / `serve --live`; read-only commands only)
+        def _live(self, method, path, qs):
+            if not state.live_enabled:
+                return _json(self, 403, {'error': 'live SSH is disabled. Start the server with --live (or LVX_LIVE=1).'})
+            if method == 'GET' and path == '/api/live/config':
+                return _json(self, 200, {'enabled': True, 'ssh_found': bool(live._find_ssh()),
+                                         'products': {k: dict(label=v['label'], logs=v['logs'] + ['journalctl -u ' + u for u in v.get('journal', [])]) for k, v in live.PRODUCTS.items()}})
+            if method == 'GET' and path == '/api/live/profiles':
+                return _json(self, 200, {'profiles': profiles.load_profiles()})
+            if method == 'POST' and path == '/api/live/profiles':
+                return _json(self, 200, {'profile': profiles.save_profile(self._body())})
+            m = re.match(r'^/api/live/profiles/(.+)$', path)
+            if m and method == 'DELETE':
+                profiles.delete_profile(unquote(m.group(1)))
+                return _json(self, 200, {'ok': True})
+            if method == 'GET' and path == '/api/live':
+                return _json(self, 200, {'sessions': [s.status() for s in state.live.values()]})
+            if method == 'POST' and path == '/api/live/start':
+                return self._live_start()
+            m = re.match(r'^/api/live/([\w-]+)(?:/(stop))?$', path)
+            if m:
+                s = state.live.get(m.group(1))
+                if not s:
+                    raise KeyError('unknown live session')
+                if method == 'POST' and m.group(2) == 'stop':
+                    s.stop()
+                    return _json(self, 200, {'ok': True})
+                if method == 'GET':
+                    since = int((qs.get('since') or ['0'])[0] or 0)
+                    st = s.status(since)
+                    st.update(job=s.job_id, bundle=s.bundle_id)
+                    return _json(self, 200, st)
+            return _json(self, 404, {'error': 'not found'})
+
+        def _live_start(self):
+            body = self._body()
+            spec = dict(body)
+            if body.get('profile'):
+                prof = next((p for p in profiles.load_profiles() if p['name'] == body['profile']), None)
+                if not prof:
+                    raise KeyError('unknown profile')
+                spec = dict(prof, **{k: body[k] for k in ('interval', 'window_h', 'issue') if body.get(k) not in (None, '')})
+            sid = uuid.uuid4().hex[:12]
+            work = os.path.join(state.tmp, 'live-' + sid)
+            os.makedirs(work)
+            jid = uuid.uuid4().hex[:12]
+            job = dict(id=jid, state='running', progress=0.0, message='Connecting', result=None, error=None, bundle=sid, verdicts={}, live=sid)
+            state.jobs[jid] = job
+
+            def on_result(res):
+                job.update(result=res, state='done', progress=1.0, message='Live')
+            try:
+                s = profiles.start_ssh_session(spec, work, on_result=on_result, password=body.get('password') or None, sid=sid)
+            except live.LiveError as e:
+                state.jobs.pop(jid, None)
+                shutil.rmtree(work, ignore_errors=True)
+                return _json(self, 400, {'error': str(e)})
+            s.job_id, s.bundle_id = jid, sid
+            state.bundles[sid] = open_bundle(sid, work)
+            state.live[sid] = s
+            _json(self, 200, {'live': sid, 'job': jid, 'bundle': sid})
 
         # ---- routes
         def _static(self, path):
@@ -295,14 +363,15 @@ def make_handler(state):
                                 after=[x for x in lines if x['n'] > sm['line']][:ctx]))
             _json(self, 200, dict(finding=f['id'], title=f['title'], samples=out))
 
-        def _report(self, jid, fmt):
+        def _report(self, jid, fmt, qs=None):
             j = state.jobs.get(jid)
             if not j or j['state'] != 'done':
                 raise KeyError('report not ready')
+            g = lambda k, d='': ((qs or {}).get(k) or [d])[0]
             res = dict(j['result'], verdicts=j.get('verdicts') or {})
-            body, ctype = {'md': (export.to_markdown(res), 'text/markdown; charset=utf-8'),
-                           'json': (export.to_json(res), 'application/json; charset=utf-8'),
-                           'html': (export.to_html(res), 'text/html; charset=utf-8')}[fmt]
+            body, _cats = export.render(res, fmt, redact=g('redact') == '1', mask_ips=g('ips', '1') != '0',
+                                        terms=[t for t in g('terms').split(',') if t.strip()])
+            ctype = {'md': 'text/markdown; charset=utf-8', 'json': 'application/json; charset=utf-8', 'html': 'text/html; charset=utf-8'}[fmt]
             data = body.encode()
             self.send_response(200)
             self.send_header('Content-Type', ctype)
@@ -314,16 +383,20 @@ def make_handler(state):
     return H
 
 
-def create_server(host='127.0.0.1', port=8765):
+def create_server(host='127.0.0.1', port=8765, live_enabled=None):
     state = State()
+    if live_enabled is not None:
+        state.live_enabled = live_enabled
+    if state.live_enabled and host not in ('127.0.0.1', 'localhost', '::1') and not state.token:
+        raise SystemExit('Refusing to enable live SSH on a non-loopback address without LVX_TOKEN set (anyone on the network could use your SSH access).')
     srv = ThreadingHTTPServer((host, port), make_handler(state))
     srv.daemon_threads = True
     srv.lvx_state = state
     return srv
 
 
-def serve(host='127.0.0.1', port=8765, open_browser=False):
-    srv = create_server(host, port)
+def serve(host='127.0.0.1', port=8765, open_browser=False, live_enabled=None):
+    srv = create_server(host, port, live_enabled)
     url = 'http://%s:%d/' % ('127.0.0.1' if host in ('0.0.0.0', '::') else host, srv.server_address[1])
     print('LogLens %s listening on %s' % (__version__, url), flush=True)
     if open_browser:

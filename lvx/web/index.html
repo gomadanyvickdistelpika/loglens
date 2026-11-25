@@ -96,6 +96,23 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
   <h2>Files</h2>
   <input type="text" id="ffilter" placeholder="filter files...">
   <div class="files" id="files" style="margin-top:6px"></div>
+
+  <details id="livebox" style="margin-top:14px" hidden>
+    <summary><b>Live: connect over SSH</b> <span class="meta">(read-only)</span></summary>
+    <div class="msg">Follows the logs on an ESXi host, vCenter appliance, XCP-ng host or Xen Orchestra and re-analyses as new lines arrive. Only fixed read-only commands are sent. Use an SSH key (or ssh-agent); a password is kept in memory only, never saved.</div>
+    <label>Saved connection</label>
+    <div class="row"><select id="lprof"><option value="">- new connection -</option></select><button id="lprofdel" style="flex:0 0 auto" title="Delete saved connection">&times;</button></div>
+    <label>Target type</label><select id="lprod"></select>
+    <div class="row"><div><label>Host / IP</label><input type="text" id="lhost" placeholder="esx01.lab.example"></div><div style="flex:0 0 70px"><label>Port</label><input type="text" id="lport" value="22"></div></div>
+    <div class="row"><div><label>User</label><input type="text" id="luser" placeholder="root"></div><div><label>Password (optional)</label><input type="password" id="lpw" autocomplete="off" placeholder="blank = use key / agent"></div></div>
+    <label>Private key file (optional)</label><input type="text" id="lkey" placeholder="C:\Users\me\.ssh\id_ed25519">
+    <label>Host key check</label><select id="lhk"><option value="accept-new">Trust on first use (remember, reject changes)</option><option value="strict">Strict: must already be in known_hosts</option></select>
+    <div class="row"><div><label>Analyse last</label><select id="lwin"><option value="0.5">30 min</option><option value="2" selected>2 hours</option><option value="6">6 hours</option><option value="24">24 hours</option></select></div><div><label>Refresh every</label><select id="lint"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select></div></div>
+    <label>Symptom (optional, improves ranking)</label><input type="text" id="lissue" placeholder="e.g. VMs hang on datastore PROD-DS01">
+    <div style="margin-top:10px"><button class="p" id="lstart">Connect and follow</button> <button id="lsave">Save connection</button> <button id="lstop" disabled>Stop</button></div>
+    <div class="msg" id="lmsg"></div>
+    <div id="levents" style="max-height:180px;overflow:auto;font:12px ui-monospace,Consolas,monospace"></div>
+  </details>
 </aside>
 <main>
   <div id="tabs"><button data-t="find" class="on">Findings</button><button data-t="tl">Timeline</button><button data-t="view">Log viewer</button><button data-t="rep">Toolbox / TDLog</button><button data-t="info">Run info</button></div>
@@ -205,7 +222,7 @@ async function poll() {
 
 // ---------- reviewer verdicts + raw-log evidence 
 const VL = {confirm: 'Confirm', reject: 'Reject', unsure: 'Unsure'};
-function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + r.window.anchor; }
+function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + (L && L.id ? 'live' : r.window.anchor); }
 function loadVerdicts() { try { S.verdicts = JSON.parse(localStorage.getItem(vkey()) || '{}') || {}; } catch (e) { S.verdicts = {}; } }
 async function saveVerdicts() {
   try { localStorage.setItem(vkey(), JSON.stringify(S.verdicts)); } catch (e) { /* private mode: server copy still kept */ }
@@ -354,6 +371,77 @@ $('#q').onkeydown = e => { if (e.key === 'Enter') search(e.shiftKey ? -1 : 1); }
 ['rx', 'cs', 'lvl', 'onlyhits', 'inwin'].forEach(id => $('#' + id).onchange = () => { S.matches = []; load({offset: 0}); });
 $('#goto').onkeydown = e => { if (e.key === 'Enter') { const n = parseInt($('#goto').value, 10); if (n > 0) { $('#onlyhits').checked = false; $('#lvl').value = ''; $('#inwin').checked = false; load({around: n}, n); } } };
 $('#pgdn').onclick = () => load({offset: S.offset + PAGE}); $('#pgup').onclick = () => load({offset: Math.max(0, S.offset - PAGE)});
+
+// ---------- live SSH (only shown when the server was started with --live)
+const L = {id: null, since: 0, timer: null, profiles: []};
+(async function initLive() {
+  try {
+    const c = await api('/api/live/config'); $('#livebox').hidden = false;
+    $('#lprod').innerHTML = Object.entries(c.products).map(([k, v]) => '<option value="' + esc(k) + '">' + esc(v.label) + '</option>').join('');
+    if (!c.ssh_found) { $('#lmsg').className = 'msg err'; $('#lmsg').textContent = 'OpenSSH client not found on the machine running LogLens (Windows: Settings > Apps > Optional features > OpenSSH Client).'; }
+    loadProfiles();
+  } catch (e) { /* live not enabled: keep the section hidden */ }
+})();
+async function loadProfiles() {
+  const r = await api('/api/live/profiles'); L.profiles = r.profiles;
+  $('#lprof').innerHTML = '<option value="">- new connection -</option>' + r.profiles.map(p => '<option>' + esc(p.name) + '</option>').join('');
+}
+$('#lprof').onchange = () => { const p = L.profiles.find(x => x.name === $('#lprof').value); if (!p) return;
+  $('#lprod').value = p.product; $('#lhost').value = p.host; $('#lport').value = p.port || 22; $('#luser').value = p.user || ''; $('#lkey').value = p.key || ''; $('#lhk').value = p.host_key || 'accept-new'; };
+$('#lprofdel').onclick = async () => { const n = $('#lprof').value; if (n) { await api('/api/live/profiles/' + encodeURIComponent(n), {method: 'DELETE'}); loadProfiles(); } };
+function liveSpec() { return {product: $('#lprod').value, host: $('#lhost').value.trim(), port: $('#lport').value.trim(), user: $('#luser').value.trim(), key: $('#lkey').value.trim(), host_key: $('#lhk').value}; }
+$('#lsave').onclick = async () => { const name = prompt('Name for this connection (the password is never saved):', $('#lprof').value || $('#lhost').value); if (!name) return;
+  try { await api('/api/live/profiles', {method: 'POST', body: JSON.stringify(Object.assign(liveSpec(), {name}))}); await loadProfiles(); $('#lprof').value = name; } catch (e) { fail('#lmsg', e.message); } };
+$('#lstart').onclick = async () => {
+  $('#lmsg').className = 'msg'; $('#lmsg').textContent = 'Connecting...'; $('#levents').innerHTML = ''; L.since = 0;
+  try {
+    const j = await api('/api/live/start', {method: 'POST', body: JSON.stringify(Object.assign(liveSpec(), {password: $('#lpw').value, window_h: $('#lwin').value, interval: $('#lint').value, issue: $('#lissue').value}))});
+    $('#lpw').value = ''; L.id = j.live; S.job = j.job; $('#lstart').disabled = true; $('#lstop').disabled = false;
+    await loaded({id: j.bundle, name: 'LIVE ' + $('#lhost').value, files: 0}); liveTick();
+  } catch (e) { fail('#lmsg', e.message); }
+};
+$('#lstop').onclick = async () => { if (L.id) await api('/api/live/' + L.id + '/stop', {method: 'POST', body: '{}'}); };
+async function liveTick() {
+  clearTimeout(L.timer);
+  try {
+    const st = await api('/api/live/' + L.id + '?since=' + L.since);
+    $('#hdr').textContent = 'LIVE ' + st.label + ' - ' + st.state + ' - ' + (st.bytes / 1024).toFixed(0) + ' KB mirrored';
+    $('#lmsg').className = 'msg' + (st.error ? ' err' : ''); $('#lmsg').textContent = st.state + (st.error ? ': ' + st.error : '') + (st.last_poll ? ' (last poll ' + new Date(st.last_poll * 1000).toLocaleTimeString() + ')' : '');
+    st.events.forEach(e => { L.since = Math.max(L.since, e.n); const d = document.createElement('div'); d.textContent = e.t.slice(11, 19) + ' ' + e.msg; if (e.kind === 'finding') d.style.fontWeight = '600'; if (e.kind === 'error') d.style.color = 'var(--crit)'; $('#levents').prepend(d); });
+    if (st.findings || st.state === 'live') {
+      const j = await api('/api/jobs/' + S.job);
+      const sig = j.state === 'done' && j.result ? JSON.stringify(j.result.findings.map(f => [f.id, f.score, f.count])) : '';
+      if (j.state === 'done' && j.result && sig !== L.sig) { L.sig = sig; S.result = j.result; loadVerdicts(); render(); const f = await api('/api/bundles/' + S.bundle + '/files'); S.files = f.files; drawFiles(); }
+    }
+    if (st.state === 'error' || st.state === 'stopped') { $('#lstart').disabled = false; $('#lstop').disabled = true; return; }
+  } catch (e) { fail('#lmsg', e.message); }
+  L.timer = setTimeout(liveTick, 4000);
+}
+
+// ---------- mask exports + action plan
+(function () {
+  const bar = document.createElement('label'); bar.style.cssText = 'margin:6px 0;display:block';
+  bar.innerHTML = '<input type="checkbox" id="redact"> Mask emails, secrets, links and IPs in downloaded reports <span class="meta">(official KB links are kept)</span>';
+  $('#pane-find').before(bar);
+  $('#redact').onchange = fixReportLinks;
+})();
+function fixReportLinks() {
+  document.querySelectorAll('a[href^="/api/report/"]').forEach(a => { const u = a.getAttribute('href').split('?')[0]; a.setAttribute('href', u + ($('#redact').checked ? '?redact=1' : '')); });
+}
+async function renderCasePack() {
+  const host = $('#pane-find'); let box = $('#casepack'); if (box) box.remove();
+  if (!S.job || !S.result) return;
+  try {
+    const r = await (await fetch('/api/report/' + S.job + '.json', {headers: TOKEN ? {Authorization: 'Bearer ' + TOKEN} : {}})).json(); const c = r.case_pack; if (!c) return;
+    const li = a => a.map(x => '<li>' + (x.risk && x.risk !== 'READ-ONLY' ? '<b>' + esc(x.risk) + ':</b> ' : '') + esc(x.text) + ' <span class="meta">(' + esc(x.finding) + ')</span></li>').join('') || '<li>none</li>';
+    host.insertAdjacentHTML('beforeend', '<details id="casepack" class="card"><summary><b>Action plan, rollback and drafts</b> <span class="meta">confidence: ' + esc(c.confidence) + '</span></summary>'
+      + '<h3>Safe checks (read-only)</h3><ul>' + li(c.safe_checks) + '</ul><h3>Risky or disruptive steps - approval required</h3><ul>' + li(c.risky_checks) + '</ul>'
+      + (c.rollback.length ? '<h3>Rollback plan</h3><ul>' + c.rollback.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
+      + '<h3>KB applicability gate</h3><p>' + esc(c.applicability) + '</p>' + (c.missing_evidence.length ? '<h3>Missing evidence</h3><ul>' + c.missing_evidence.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
+      + '<h3>Customer-ready draft</h3><pre>' + esc(c.customer_draft) + '</pre><h3>Internal note</h3><pre>' + esc(c.internal_note) + '</pre></details>');
+  } catch (e) { /* case pack is optional */ }
+}
+const _render = render; render = function () { _render(); fixReportLinks(); renderCasePack(); };
 </script>
 </body>
 </html>

@@ -31,6 +31,11 @@ One engine (`lvx/`, Python standard library only), three ways to run it:
    **Toolbox / TDLog** (parsed reports; entries whose events/dates fall outside the window are greyed as *stale*),
    **Run info**. Export Markdown / HTML / JSON.
 
+## Live mode, action plan and masked exports
+* **Live over SSH** (ESXi, vCenter appliance, XCP-ng, Xen Orchestra): `python -m lvx serve --live` or `python -m lvx live root@host --product esxi`. Read-only, key/agent auth, nothing stored. See [docs/LIVE.md](docs/LIVE.md).
+* **Action plan and drafts** (merged from the vmware-case-agent project): every report ends with safe READ-ONLY checks, RISKY / DISRUPTIVE steps marked *approval required*, a rollback plan, a KB applicability gate, missing evidence, and customer-ready and internal-note drafts that never claim a root cause until a reviewer confirms one.
+* **Masked exports:** `--redact` on the CLI, `?redact=1` on report URLs, or the checkbox in the UI masks emails, phone numbers, secrets, private links and IPs (official KB links, timestamps and evidence are kept). `--redact-term NAME` masks customer, host or VM names.
+
 ## How the noise is removed
 * Time window filter (before/after the incident) - out-of-window lines are only counted, never ranked.
 * Level detection; benign phrases (`errors: 0`, `successfully`, ...) ignored.

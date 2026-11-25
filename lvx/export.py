@@ -2,6 +2,8 @@
 import html
 import json
 
+from . import guidance, privacy
+
 
 VERDICT_LABEL = {'confirm': 'CONFIRMED against the raw log', 'reject': 'REJECTED (not a real issue)', 'unsure': 'UNSURE - needs more checking'}
 
@@ -14,6 +16,7 @@ def to_json(res):
     out = dict(res)
     vs = res.get('verdicts') or {}
     out['findings'] = [dict(f, verdict=vs.get(f['id'])) for f in res.get('findings', [])]
+    out['case_pack'] = guidance.build(res, version=res.get('version'))
     return json.dumps(out, indent=2, default=str)
 
 
@@ -71,7 +74,7 @@ KB_FOOTER = ('KB research is matched from the LogLens KB library, a dated snapsh
              '(summaries, not article text; not a live search). Open each article and confirm it applies to your exact build before acting.')
 
 
-def to_markdown(res):
+def to_markdown(res, case_pack=None):
     w = res['window']
     L = ['# Log analysis report', '',
          '- **Bundle:** %s  (%s)' % (res['bundle'], ', '.join(res['products'])),
@@ -117,6 +120,7 @@ def to_markdown(res):
                                                    rf['score'], ' **stale - outside window**' if rf.get('stale') else ''))
             if rf.get('kb_research') and rf['kb_research']['status'] == 'none':
                 L.append('  - Broadcom KB research: %s' % rf['kb_research']['message'])
+    L += [''] + guidance.to_markdown(case_pack or guidance.build(res, version=res.get('version'))).rstrip().splitlines()
     L += ['', '---', '_%s_' % KB_FOOTER]
     return '\n'.join(L) + '\n'
 
@@ -159,5 +163,15 @@ def to_html(res):
     for rf in res.get('report_findings', []):
         parts.append('<div class="f %s"><b>[%s] %s</b>%s</div>' % ('stale' if rf.get('stale') else '', e(rf['source']), e(rf['title']),
                                                                      ' (stale, outside window)' if rf.get('stale') else ''))
+    parts.append('<div class="f"><pre>%s</pre></div>' % e(guidance.to_markdown(guidance.build(res, version=res.get('version')))))
     parts.append('<p><small>%s</small></p>' % e(KB_FOOTER))
     return ''.join(parts)
+
+
+def render(res, fmt, redact=False, mask_ips=True, terms=()):
+    """Render `res` as md / json / html; with redact=True emails, secrets, links, IPs and `terms` are masked first.
+    Returns (text, redaction_categories)."""
+    body = {'md': to_markdown, 'json': to_json, 'html': to_html}[fmt](res)
+    if not redact:
+        return body, ()
+    return privacy.redact(body, mask_ips=mask_ips, extra_terms=terms)

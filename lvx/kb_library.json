@@ -1946,6 +1946,89 @@
    "resolution": [],
    "notes": "",
    "basis": "title"
+  },
+  {
+   "topic": "Host/hardware not supported for the target ESXi release",
+   "priority": 0,
+   "rules": [
+    "vc.upg_precheck",
+    "vc.upg_fail",
+    "vc.lcm_remediation"
+   ],
+   "match": "unsupported hardware|compatibility guide|not supported",
+   "articles": [
+    {
+     "id": "381824",
+     "title": "Checking Host Compatibility Before Upgrade Using the Broadcom Compatibility Guide"
+    }
+   ],
+   "cause": "The host CPU/device is not on the compatibility list for the target release.",
+   "resolution": [
+    "Check the host against the Broadcom Compatibility Guide before upgrading.",
+    "Replace or keep the host on a supported release."
+   ],
+   "notes": "Imported from the vmware-case-agent project (candidate reference; confirm exact build and prerequisites).",
+   "basis": "summary"
+  },
+  {
+   "topic": "ESXi remediation 7.x to 8.x fails: custom VIB with missing dependencies",
+   "priority": 0,
+   "rules": [
+    "vc.lcm_remediation"
+   ],
+   "match": "vib|dependenc|incompatible",
+   "articles": [
+    {
+     "id": "412258",
+     "title": "ESXi remediation from 7.x to 8.x fails with software or system configuration incompatible"
+    }
+   ],
+   "cause": "A vendor/custom VIB in the image has a missing dependency.",
+   "resolution": [
+    "Add the matching vendor add-on or remove the stale VIB from the image, then re-run compliance."
+   ],
+   "notes": "Imported from the vmware-case-agent project (candidate reference; confirm exact build and prerequisites).",
+   "basis": "summary"
+  },
+  {
+   "topic": "VCSA update fails on patching_backup_config.json",
+   "priority": 0,
+   "rules": [
+    "vc.upg_patching_backup"
+   ],
+   "match": "patching_backup|checksum",
+   "articles": [
+    {
+     "id": "399833",
+     "title": "Error [Errno 2] patching_backup_config.json - vCenter Server Appliance"
+    }
+   ],
+   "cause": "The staged update is missing a file or its checksum mismatches.",
+   "resolution": [
+    "Clear the staged update and re-stage from a verified download."
+   ],
+   "notes": "Imported from the vmware-case-agent project (candidate reference; confirm exact build and prerequisites).",
+   "basis": "summary"
+  },
+  {
+   "topic": "vMotion fails because of EVC / CPU incompatibility",
+   "priority": 0,
+   "rules": [
+    "esx.vmotion"
+   ],
+   "match": "evc|cpu.{0,25}incompat",
+   "articles": [
+    {
+     "id": "390403",
+     "title": "vMotion failed due to EVC settings"
+    }
+   ],
+   "cause": "The destination host CPU does not satisfy the cluster EVC baseline.",
+   "resolution": [
+    "Align the cluster EVC mode with the lowest-common CPU generation, or migrate cold."
+   ],
+   "notes": "Imported from the vmware-case-agent project (candidate reference; confirm exact build and prerequisites).",
+   "basis": "summary"
   }
  ]
 }
