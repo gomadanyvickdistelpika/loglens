@@ -315,7 +315,8 @@ def make_handler(state):
                               regex=g('regex') == '1', case=g('case') == '1', level=g('level') or None,
                               start=parse_user_time(g('start')) if g('start') else None,
                               end=parse_user_time(g('end')) if g('end') else None,
-                              around=int(g('around')) if g('around') else None)
+                              around=int(g('around')) if g('around') else None,
+                              year=time.gmtime(parse_user_time(g('start'))).tm_year if g('start') else None)
             _json(self, 200, res)
 
         def _find(self, qs):

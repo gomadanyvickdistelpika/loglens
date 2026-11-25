@@ -50,7 +50,7 @@ def run(only=None, verbose=True, days=3):
     rows = []
     t0 = time.time()
     try:
-        for t in templates.all_templates():
+        for t in templates.pack_templates('vmware'):
             if not t['bundle'] or (only and t['id'] not in only):
                 continue
             total += 1

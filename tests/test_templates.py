@@ -22,7 +22,7 @@ PUBLIC_OK = ('broadcom.com', 'vmware.com', 'dell.com', 'vsphere.local', 'lab.exa
 
 class TemplateSchema(unittest.TestCase):
     def setUp(self):
-        self.t = templates.all_templates()
+        self.t = templates.pack_templates('vmware')
 
     def test_count_and_ids(self):
         self.assertGreaterEqual(len(self.t), 25)

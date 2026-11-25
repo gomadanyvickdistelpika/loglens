@@ -73,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 <div id="app">
 <aside>
   <h2>1. Open a bundle</h2>
-  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz GSS Toolbox / TDLog</small>
+  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz &middot; VMware (GSS Toolbox / TDLog) &middot; XCP-ng xen-bugtool, XO journalctl</small>
     <input type="file" id="file" hidden></div>
   <label>or a path on the server</label>
   <div class="row"><input type="text" id="srvpath" placeholder="/data/bundles/vc-support.tgz"><button id="openpath" style="flex:0 0 auto">Open</button></div>
@@ -81,7 +81,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 
   <h2>2. Describe the issue</h2>
   <label for="issue">Customer symptom (drives ranking)</label>
-  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC"></textarea>
+  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC  |  XCP-ng: SR full, VM will not start  |  XO: backup fails with VDI_IO_ERROR"></textarea>
   <label for="itime">Incident time (UTC unless a zone is given)</label>
   <input type="text" id="itime" placeholder="2026-09-27T14:30:00Z  (blank = newest log time)">
   <div class="row">
@@ -176,15 +176,15 @@ async function loaded(b) {
   S.bundle = b.id; $('#hdr').textContent = b.name + ' - ' + b.files + ' files'; $('#openmsg').className = 'msg'; $('#openmsg').textContent = 'Opened.';
   $('#go').disabled = false; const f = await api('/api/bundles/' + b.id + '/files'); S.files = f.files; drawFiles();
 }
-const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd/i;
+const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd|smlog|xensource/i;
 
 function kbBlock(r) {
   if (!r) return '';
-  if (r.status === 'none') return '<div class="kbx none"><b>' + 'Broadcom' + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
-  let h = '<div class="kbx"><b>' + 'Broadcom' + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  if (r.status === 'none') return '<div class="kbx none"><b>' + esc(r.vendor || 'Broadcom') + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>' + esc(r.vendor || 'Broadcom') + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
     h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? (en.synthetic ? ' <span class="badge">synthetic scenario - not a resolved case</span>' : ' <span class="badge hi">from a resolved support case (anonymised)</span>') : '') + '<div>'
-      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + 'KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
+      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + esc(a.label || ('KB ' + a.id)) + '</a> ' + esc(a.title) + (a.seen ? ' <span class="meta">(seen ' + esc(a.seen) + ')</span>' : '')).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
     if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
     h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
       : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';

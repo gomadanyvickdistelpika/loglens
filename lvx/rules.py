@@ -348,6 +348,11 @@ _KW = {
  'vc.ha_unreachable': 'agent unreachable|agent uninitialized|not reachable from vcenter|management network addresses',
  'vc.cert_expired_svc': 'expired',
 }
+from . import packs as _packs                       # noqa: E402
+if _packs.enabled('vates'):
+    from . import rules_vates                       # noqa: E402,F401  (registers the xcp.* rules via rule())
+R[:] = [_r for _r in R if _packs.enabled(_packs.rule_pack(_r['id']))]
 for _r in R:
-    _r['kws'] = tuple(_KW[_r['id']].split('|'))
+    _r['kws'] = tuple(_KW.get(_r['id'], _r['kw']).split('|'))
     _r['any_level'] = _r['id'] in ('vc.acl_legacy',)
+BY_ID = {_r['id']: _r for _r in R}
