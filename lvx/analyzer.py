@@ -503,7 +503,7 @@ class Analyzer:
         for d in items:                       # early warning that explains a later failure ranks above it
             rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
             if rf and d['_first']:
-                later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] > d['_first']]
+                later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] >= d['_first']]
                 if later:
                     t = max(later, key=lambda t: t['score'])
                     d['score'] = round(max(d['score'], t['score'] + 1.5), 1)

@@ -132,7 +132,8 @@ rule('vc.ls_client', 'vCenter: Lookup Service client adapter exception', 'vcente
 rule('vc.disk_full', 'vCenter: appliance partition full (/storage/*)', 'vcenter', 'high', ['disk-space', 'database', 'services', 'upgrade'],
      'space', r'No space left on device|DiskFull|ENOSPC|disk (?:is )?full|file system.{0,30}full|/storage/\w+.{0,40}(?:\b100%|\bfull\b)',
      'A VCSA partition is full. Run df -h and find which /storage/* volume (seat = stats/events/tasks, db, log, core, archive) is at 100%; grow the VMDK/partition (KB: "Increase disk space on VCSA") or purge. Full /storage/seat or /storage/db stops vpostgres and vpxd, and also aborts upgrade imports.',
-     search='VCSA /storage/seat full no space left on device increase VMDK')
+     search='VCSA /storage/seat full no space left on device increase VMDK',
+     root_for=('vc.db', 'vc.service_down', 'vc.vpxd_crash'))
 rule('vc.upg_fail', 'vCenter upgrade: stage / firstboot failure', 'vcenter', 'high', ['upgrade', 'services'],
      'stage|firstboot|first boot|upgrade|import', r'Stage \d+ (?:failed|error)|(?:firstboot|first boot|vpxd_firstboot).{0,80}(?:exited with code [1-9]|failed|error)|upgrade (?:failed|aborted)|Failed to import (?:configuration )?data|Import (?:of )?\w+ data failed',
      'Marks WHERE the upgrade died (stage/step). The cause is usually the earliest ERROR just before it (database/disk, certificate, Lookup Service, DNS, service start). Read the firstboot stderr/stdout logs and /var/log/vmware/upgrade/ around this time.',
