@@ -3,7 +3,7 @@
 > **Unofficial project.** LogLens is an independent, community tool. It is not affiliated with, endorsed by or supported by Broadcom, VMware or Vates. XCP-ng and Xen Orchestra are products/trademarks of their owners.
 > KB links come from public search results (titles and URLs only; article text was not read) and may be out of date. Always verify a finding against the raw log and the vendor's own documentation.
 
-**Two rule packs, one engine.** `vmware` (ESXi, vCenter, SDDC: 63 rules, Broadcom KB, 49 case templates) and `vates` (XCP-ng, Xen Orchestra: 25 rules, public Vates/XCP-ng pages, 19 scenarios). The product of each file is detected automatically, so a mixed bundle works. `LVX_PACKS=vates` (or `vmware`) gives a single-family build; this replaces the separate `loglens-vates` project.
+**Two rule packs, one engine.** `vmware` (ESXi, vCenter, SDDC: 63 rules, Broadcom KB, 49 case templates) and `vates` (XCP-ng, Xen Orchestra: 25 rules, public Vates/XCP-ng pages, 19 scenarios). The product of each file is detected automatically, so a mixed bundle works. `LVX_PACKS=vates` (or `vmware`) restricts a run to one family. LogLens is the VMware-focused product; the Vates-focused product is the separate [loglens-vates](https://github.com/gomadanyvickdistelpika/loglens-vates) repo, which shares this engine.
 The VMware pack reads GSS Toolbox and TDLog reports; the Vates pack has its own counterparts, **Vates Toolbox** (health modules from `commands/` output) and **VTLog** (signature history and certificates), built in - see [docs/VATES_TOOLBOX.md](docs/VATES_TOOLBOX.md).
 > Case templates are anonymised, synthetic scenarios (invented hosts, 192.0.2.x addresses); no real customer logs or data are included. Never upload customer logs to a tool you do not control.
 
@@ -25,7 +25,7 @@ One engine (`lvx/`, Python standard library only), three ways to run it:
 ## Try it now: six virtual client bundles + live replay
 [`examples/virtual-estate/`](examples/virtual-estate/CASES.md) holds six full-size XCP-ng + Xen Orchestra bundles for a fictional client (2 hosts, 1 orchestrator, SAN, NAS, 6 VMs; ~35 files each), each with a different fault: SR full, HA self-fence after a bond failure, dom0 `/var/log` full, NFS outage, dom0 OOM, XO appliance disk full. `CASES.md` lists the ticket, the incident time, what LogLens must rank first and the `grep` commands that confirm the cause by hand. Rebuild with `python tools/build_virtual_estate.py OUT_DIR`.
 To watch **live mode** without a server: `python tools/live_demo.py BW-03` (replays a case into a local "remote host" that the Live panel follows).
-The `loglens-vates` repo is a Vates-default build of this code: `python tools/sync_variants.py ../loglens-vates`.
+Maintainers: [loglens-vates](https://github.com/gomadanyvickdistelpika/loglens-vates) is a separate product with its own releases and README. It reuses this engine; to copy engine changes across run `python tools/sync_variants.py ../loglens-vates`, then review and commit there.
 
 ## Workflow
 1. **Open** a bundle: drag in `.zip/.tgz/.tar.gz` (nested archives, rotated `.gz` logs fine), a log file, a
