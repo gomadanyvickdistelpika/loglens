@@ -73,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 <div id="app">
 <aside>
   <h2>1. Open a bundle</h2>
-  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz GSS Toolbox / TDLog</small>
+  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz &middot; VMware (GSS Toolbox / TDLog) &middot; XCP-ng xen-bugtool, XO journalctl</small>
     <input type="file" id="file" hidden></div>
   <label>or a path on the server</label>
   <div class="row"><input type="text" id="srvpath" placeholder="/data/bundles/vc-support.tgz"><button id="openpath" style="flex:0 0 auto">Open</button></div>
@@ -81,7 +81,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 
   <h2>2. Describe the issue</h2>
   <label for="issue">Customer symptom (drives ranking)</label>
-  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC"></textarea>
+  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC  |  XCP-ng: SR full, VM will not start  |  XO: backup fails with VDI_IO_ERROR"></textarea>
   <label for="itime">Incident time (UTC unless a zone is given)</label>
   <input type="text" id="itime" placeholder="2026-09-27T14:30:00Z  (blank = newest log time)">
   <div class="row">
@@ -96,6 +96,23 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
   <h2>Files</h2>
   <input type="text" id="ffilter" placeholder="filter files...">
   <div class="files" id="files" style="margin-top:6px"></div>
+
+  <details id="livebox" style="margin-top:14px" hidden>
+    <summary><b>Live: connect over SSH</b> <span class="meta">(read-only)</span></summary>
+    <div class="msg">Follows the logs on an ESXi host, vCenter appliance, XCP-ng host or Xen Orchestra and re-analyses as new lines arrive. Only fixed read-only commands are sent. Use an SSH key (or ssh-agent); a password is kept in memory only, never saved.</div>
+    <label>Saved connection</label>
+    <div class="row"><select id="lprof"><option value="">- new connection -</option></select><button id="lprofdel" style="flex:0 0 auto" title="Delete saved connection">&times;</button></div>
+    <label>Target type</label><select id="lprod"></select>
+    <div class="row"><div><label>Host / IP</label><input type="text" id="lhost" placeholder="esx01.lab.example"></div><div style="flex:0 0 70px"><label>Port</label><input type="text" id="lport" value="22"></div></div>
+    <div class="row"><div><label>User</label><input type="text" id="luser" placeholder="root"></div><div><label>Password (optional)</label><input type="password" id="lpw" autocomplete="off" placeholder="blank = use key / agent"></div></div>
+    <label>Private key file (optional)</label><input type="text" id="lkey" placeholder="C:\Users\me\.ssh\id_ed25519">
+    <label>Host key check</label><select id="lhk"><option value="accept-new">Trust on first use (remember, reject changes)</option><option value="strict">Strict: must already be in known_hosts</option></select>
+    <div class="row"><div><label>Analyse last</label><select id="lwin"><option value="0.5">30 min</option><option value="2" selected>2 hours</option><option value="6">6 hours</option><option value="24">24 hours</option></select></div><div><label>Refresh every</label><select id="lint"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select></div></div>
+    <label>Symptom (optional, improves ranking)</label><input type="text" id="lissue" placeholder="e.g. VMs hang on datastore PROD-DS01">
+    <div style="margin-top:10px"><button class="p" id="lstart">Connect and follow</button> <button id="lsave">Save connection</button> <button id="lstop" disabled>Stop</button></div>
+    <div class="msg" id="lmsg"></div>
+    <div id="levents" style="max-height:180px;overflow:auto;font:12px ui-monospace,Consolas,monospace"></div>
+  </details>
 </aside>
 <main>
   <div id="tabs"><button data-t="find" class="on">Findings</button><button data-t="tl">Timeline</button><button data-t="view">Log viewer</button><button data-t="rep">Toolbox / TDLog</button><button data-t="info">Run info</button></div>
@@ -159,15 +176,15 @@ async function loaded(b) {
   S.bundle = b.id; $('#hdr').textContent = b.name + ' - ' + b.files + ' files'; $('#openmsg').className = 'msg'; $('#openmsg').textContent = 'Opened.';
   $('#go').disabled = false; const f = await api('/api/bundles/' + b.id + '/files'); S.files = f.files; drawFiles();
 }
-const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd/i;
+const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd|smlog|xensource/i;
 
 function kbBlock(r) {
   if (!r) return '';
-  if (r.status === 'none') return '<div class="kbx none"><b>' + 'Broadcom' + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
-  let h = '<div class="kbx"><b>' + 'Broadcom' + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  if (r.status === 'none') return '<div class="kbx none"><b>' + esc(r.vendor || 'Broadcom') + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>' + esc(r.vendor || 'Broadcom') + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
     h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? (en.synthetic ? ' <span class="badge">synthetic scenario - not a resolved case</span>' : ' <span class="badge hi">from a resolved support case (anonymised)</span>') : '') + '<div>'
-      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + 'KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
+      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + esc(a.label || ('KB ' + a.id)) + '</a> ' + esc(a.title) + (a.seen ? ' <span class="meta">(seen ' + esc(a.seen) + ')</span>' : '')).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
     if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
     h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
       : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';
@@ -205,7 +222,7 @@ async function poll() {
 
 // ---------- reviewer verdicts + raw-log evidence 
 const VL = {confirm: 'Confirm', reject: 'Reject', unsure: 'Unsure'};
-function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + r.window.anchor; }
+function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + (L && L.id ? 'live' : r.window.anchor); }
 function loadVerdicts() { try { S.verdicts = JSON.parse(localStorage.getItem(vkey()) || '{}') || {}; } catch (e) { S.verdicts = {}; } }
 async function saveVerdicts() {
   try { localStorage.setItem(vkey(), JSON.stringify(S.verdicts)); } catch (e) { /* private mode: server copy still kept */ }
@@ -275,7 +292,7 @@ function renderFind() {
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
   if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
-  if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
+  if (r.report_findings.length) { h += '<h2>From ' + BRAND.reports + ' reports</h2>';
     r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
       + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }
   $('#pane-find').innerHTML = h;
@@ -299,9 +316,10 @@ function renderTL() {
   $('#pane-tl').innerHTML = h;
 }
 function renderRep() {
-  const reps = S.result.reports; if (!reps.length) { $('#pane-rep').innerHTML = '<div class="msg">No GSS Toolbox or TDLog report found in this bundle. Open one with the drop zone (.txt or .pdf).</div>'; return; }
+  const reps = S.result.reports; if (!reps.length) { $('#pane-rep').innerHTML = '<div class="msg">' + BRAND.none + '</div>'; return; }
   let h = '';
   reps.forEach(r => {
+    if (r.kind === 'vtoolbox' || r.kind === 'vtlog') { h += renderVates(r); return; }
     h += '<div class="banner"><b>' + (r.kind === 'toolbox' ? 'GSS Toolbox' : 'TDLog') + '</b> &mdash; ' + esc(r.file) + '</div>';
     if (r.kind === 'toolbox') { const m = r.meta; h += '<div class="meta">' + ['hostname', 'product', 'version', 'build', 'hardware', 'uptime', 'log_date'].filter(k => m[k]).map(k => k + ': ' + esc(m[k])).join(' &middot; ') + '</div>';
       h += '<table><tr><th>Module</th><th>Alert</th><th>Description</th><th>KB</th><th>Status</th></tr>' + r.modules.filter(x => x.alert !== 'info').map(x => '<tr' + (x.stale ? ' style="opacity:.5"' : '') + '><td>' + esc(x.module) + '</td><td>' + esc(x.alert) + '</td><td>' + esc(x.description) + '</td><td>' + esc(x.kb || '') + '</td><td>' + (x.stale ? 'stale (events older than window)' : 'relevant') + '</td></tr>').join('') + '</table>'; }
@@ -354,6 +372,107 @@ $('#q').onkeydown = e => { if (e.key === 'Enter') search(e.shiftKey ? -1 : 1); }
 ['rx', 'cs', 'lvl', 'onlyhits', 'inwin'].forEach(id => $('#' + id).onchange = () => { S.matches = []; load({offset: 0}); });
 $('#goto').onkeydown = e => { if (e.key === 'Enter') { const n = parseInt($('#goto').value, 10); if (n > 0) { $('#onlyhits').checked = false; $('#lvl').value = ''; $('#inwin').checked = false; load({around: n}, n); } } };
 $('#pgdn').onclick = () => load({offset: S.offset + PAGE}); $('#pgup').onclick = () => load({offset: Math.max(0, S.offset - PAGE)});
+
+// ---------- live SSH (only shown when the server was started with --live)
+const L = {id: null, since: 0, timer: null, profiles: []};
+(async function initLive() {
+  try {
+    const c = await api('/api/live/config'); $('#livebox').hidden = false;
+    $('#lprod').innerHTML = Object.entries(c.products).map(([k, v]) => '<option value="' + esc(k) + '">' + esc(v.label) + '</option>').join('');
+    if (!c.ssh_found) { $('#lmsg').className = 'msg err'; $('#lmsg').textContent = 'OpenSSH client not found on the machine running LogLens (Windows: Settings > Apps > Optional features > OpenSSH Client).'; }
+    loadProfiles();
+  } catch (e) { /* live not enabled: keep the section hidden */ }
+})();
+async function loadProfiles() {
+  const r = await api('/api/live/profiles'); L.profiles = r.profiles;
+  $('#lprof').innerHTML = '<option value="">- new connection -</option>' + r.profiles.map(p => '<option>' + esc(p.name) + '</option>').join('');
+}
+$('#lprof').onchange = () => { const p = L.profiles.find(x => x.name === $('#lprof').value); if (!p) return;
+  $('#lprod').value = p.product; $('#lhost').value = p.host; $('#lport').value = p.port || 22; $('#luser').value = p.user || ''; $('#lkey').value = p.key || ''; $('#lhk').value = p.host_key || 'accept-new'; };
+$('#lprofdel').onclick = async () => { const n = $('#lprof').value; if (n) { await api('/api/live/profiles/' + encodeURIComponent(n), {method: 'DELETE'}); loadProfiles(); } };
+function liveSpec() { return {product: $('#lprod').value, host: $('#lhost').value.trim(), port: $('#lport').value.trim(), user: $('#luser').value.trim(), key: $('#lkey').value.trim(), host_key: $('#lhk').value}; }
+$('#lsave').onclick = async () => { const name = prompt('Name for this connection (the password is never saved):', $('#lprof').value || $('#lhost').value); if (!name) return;
+  try { await api('/api/live/profiles', {method: 'POST', body: JSON.stringify(Object.assign(liveSpec(), {name}))}); await loadProfiles(); $('#lprof').value = name; } catch (e) { fail('#lmsg', e.message); } };
+$('#lstart').onclick = async () => {
+  $('#lmsg').className = 'msg'; $('#lmsg').textContent = 'Connecting...'; $('#levents').innerHTML = ''; L.since = 0;
+  try {
+    const j = await api('/api/live/start', {method: 'POST', body: JSON.stringify(Object.assign(liveSpec(), {password: $('#lpw').value, window_h: $('#lwin').value, interval: $('#lint').value, issue: $('#lissue').value}))});
+    $('#lpw').value = ''; L.id = j.live; S.job = j.job; $('#lstart').disabled = true; $('#lstop').disabled = false;
+    await loaded({id: j.bundle, name: 'LIVE ' + $('#lhost').value, files: 0}); liveTick();
+  } catch (e) { fail('#lmsg', e.message); }
+};
+$('#lstop').onclick = async () => { if (L.id) await api('/api/live/' + L.id + '/stop', {method: 'POST', body: '{}'}); };
+async function liveTick() {
+  clearTimeout(L.timer);
+  try {
+    const st = await api('/api/live/' + L.id + '?since=' + L.since);
+    $('#hdr').textContent = 'LIVE ' + st.label + ' - ' + st.state + ' - ' + (st.bytes / 1024).toFixed(0) + ' KB mirrored';
+    $('#lmsg').className = 'msg' + (st.error ? ' err' : ''); $('#lmsg').textContent = st.state + (st.error ? ': ' + st.error : '') + (st.last_poll ? ' (last poll ' + new Date(st.last_poll * 1000).toLocaleTimeString() + ')' : '');
+    st.events.forEach(e => { L.since = Math.max(L.since, e.n); const d = document.createElement('div'); d.textContent = e.t.slice(11, 19) + ' ' + e.msg; if (e.kind === 'finding') d.style.fontWeight = '600'; if (e.kind === 'error') d.style.color = 'var(--crit)'; $('#levents').prepend(d); });
+    if (st.findings || st.state === 'live') {
+      const j = await api('/api/jobs/' + S.job);
+      const sig = j.state === 'done' && j.result ? JSON.stringify(j.result.findings.map(f => [f.id, f.score, f.count])) : '';
+      if (j.state === 'done' && j.result && sig !== L.sig) { L.sig = sig; S.result = j.result; loadVerdicts(); render(); const f = await api('/api/bundles/' + S.bundle + '/files'); S.files = f.files; drawFiles(); }
+    }
+    if (st.state === 'error' || st.state === 'stopped') { $('#lstart').disabled = false; $('#lstop').disabled = true; return; }
+  } catch (e) { fail('#lmsg', e.message); }
+  L.timer = setTimeout(liveTick, 4000);
+}
+
+// ---------- mask exports + action plan
+(function () {
+  const bar = document.createElement('label'); bar.style.cssText = 'margin:6px 0;display:block';
+  bar.innerHTML = '<input type="checkbox" id="redact"> Mask emails, secrets, links and IPs in downloaded reports <span class="meta">(official KB links are kept)</span>';
+  $('#pane-find').before(bar);
+  $('#redact').onchange = fixReportLinks;
+})();
+function fixReportLinks() {
+  document.querySelectorAll('a[href^="/api/report/"]').forEach(a => { const u = a.getAttribute('href').split('?')[0]; a.setAttribute('href', u + ($('#redact').checked ? '?redact=1' : '')); });
+}
+async function renderCasePack() {
+  const host = $('#pane-find'); let box = $('#casepack'); if (box) box.remove();
+  if (!S.job || !S.result) return;
+  try {
+    const r = await (await fetch('/api/report/' + S.job + '.json', {headers: TOKEN ? {Authorization: 'Bearer ' + TOKEN} : {}})).json(); const c = r.case_pack; if (!c) return;
+    const li = a => a.map(x => '<li>' + (x.risk && x.risk !== 'READ-ONLY' ? '<b>' + esc(x.risk) + ':</b> ' : '') + esc(x.text) + ' <span class="meta">(' + esc(x.finding) + ')</span></li>').join('') || '<li>none</li>';
+    host.insertAdjacentHTML('beforeend', '<details id="casepack" class="card"><summary><b>Action plan, rollback and drafts</b> <span class="meta">confidence: ' + esc(c.confidence) + '</span></summary>'
+      + '<h3>Safe checks (read-only)</h3><ul>' + li(c.safe_checks) + '</ul><h3>Risky or disruptive steps - approval required</h3><ul>' + li(c.risky_checks) + '</ul>'
+      + (c.rollback.length ? '<h3>Rollback plan</h3><ul>' + c.rollback.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
+      + '<h3>KB applicability gate</h3><p>' + esc(c.applicability) + '</p>' + (c.missing_evidence.length ? '<h3>Missing evidence</h3><ul>' + c.missing_evidence.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
+      + '<h3>Customer-ready draft</h3><pre>' + esc(c.customer_draft) + '</pre><h3>Internal note</h3><pre>' + esc(c.internal_note) + '</pre></details>');
+  } catch (e) { /* case pack is optional */ }
+}
+const _render = render; render = function () { _render(); fixReportLinks(); renderCasePack(); };
+
+// ---------- Vates Toolbox / VTLog (Vates counterpart of GSS Toolbox / TDLog)
+const ALERT_CLS = {critical: 'color:var(--crit);font-weight:600', warning: 'color:var(--warn,#9a6700);font-weight:600'};
+function renderVates(r) {
+  let h = '<div class="banner"><b>' + esc(r.brand) + '</b> &mdash; ' + esc(r.file) + '</div>';
+  if (r.kind === 'vtoolbox') {
+    const m = r.meta; h += '<div class="meta">' + ['hostname', 'product', 'version', 'uptime', 'log_date'].filter(k => m[k]).map(k => k + ': ' + esc(m[k])).join(' &middot; ') + ' &middot; ' + (m.plugins_run || 0) + ' checks, ' + (m.plugins_matched || 0) + ' need attention</div>';
+    h += '<table><tr><th>Module</th><th>Alert</th><th>Description</th><th>Resolution</th></tr>' + r.modules.map(x => '<tr' + (x.alert === 'ok' || x.alert === 'info' ? ' style="opacity:.6"' : '') + '><td>' + esc(x.module) + '<div class="meta">' + esc(x.space) + '</div></td><td style="' + (ALERT_CLS[x.alert] || '') + '">' + esc(x.alert) + '</td><td>' + esc(x.description)
+      + (x.details && x.alert !== 'ok' ? '<details><summary class="meta">details</summary><pre>' + esc(x.details) + '</pre></details>' : '') + '</td><td>' + esc(x.resolution || '') + '</td></tr>').join('') + '</table>';
+  } else {
+    const s = r.sections, m = r.meta || {};
+    h += '<div class="meta">History scanned over ' + (m.span_days || '?') + ' day(s), ' + esc(m.bundle_start || '') + ' &rarr; ' + esc(m.bundle_end || '') + '. A signature outside the incident window is a precursor or stale.</div>';
+    h += '<h2>Signature history</h2><table><tr><th>Signature</th><th>Matches</th><th>Days</th><th>First / last</th><th>Main file</th><th>Status</th></tr>' + s.signatures.map(x => '<tr' + (x.in_window ? '' : ' style="opacity:.5"') + '><td>' + esc(x.title) + '<div class="meta">' + esc(x.rule) + '</div>'
+      + (x.evidence.length ? '<details><summary class="meta">sample lines</summary><pre>' + esc(x.evidence.join('\n')) + '</pre></details>' : '') + '</td><td>' + x.count + '</td><td>' + x.days_hit + ' of ' + x.days_total + '</td><td>' + esc((x.first || '') + ' / ' + (x.last || '')) + '</td><td>' + esc(x.file) + '</td><td>' + (x.in_window ? 'in window' : 'outside window') + '</td></tr>').join('') + '</table>';
+    if (s.certificates.length) h += '<h2>Certificates</h2><table><tr><th>Host</th><th>State</th><th>Alert</th></tr>' + s.certificates.map(c => '<tr><td>' + esc(c.subject) + '</td><td>' + esc(c.description) + '</td><td style="' + (ALERT_CLS[c.alert] || '') + '">' + esc(c.alert) + '</td></tr>').join('') + '</table>';
+  }
+  return h;
+}
+let BRAND = {tab: 'Toolbox / TDLog', reports: 'GSS Toolbox / TDLog', none: 'No GSS Toolbox or TDLog report found in this bundle. Open one with the drop zone (.txt or .pdf).'};
+(async function brand() {
+  try {
+    const h = await api('/api/health');
+    if (h.packs && h.packs.indexOf('vmware') < 0) {            // Vates-only build: no GSS Toolbox / TDLog, show the Vates counterparts
+      BRAND = {tab: 'Vates Toolbox / VTLog', reports: 'Vates Toolbox / VTLog', none: 'No Vates Toolbox data in this bundle (it needs commands/*.txt output such as df, free, xe sr-list) and no signature history.'};
+      document.querySelector('#tabs button[data-t="rep"]').textContent = BRAND.tab;
+      const d = document.querySelector('#drop small'); if (d) d.innerHTML = '.zip .tgz .tar.gz .log .gz &middot; XCP-ng xen-bugtool, XO journalctl';
+      document.querySelector('#pane-rep').innerHTML = '<div class="msg">' + BRAND.none + '</div>';
+    }
+  } catch (e) { /* default labels */ }
+})();
 </script>
 </body>
 </html>

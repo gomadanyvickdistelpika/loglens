@@ -304,7 +304,7 @@ class KbResearch(unittest.TestCase):
     def test_library_schema(self):
         from lvx import kb
         from lvx.rules import BY_ID
-        lib = kb._load()
+        lib = kb._load()['libs']['broadcom']
         self.assertGreater(len(lib['entries']), 40)
         for e in lib['entries']:
             self.assertTrue(e['topic'] and e['articles'], e['topic'])

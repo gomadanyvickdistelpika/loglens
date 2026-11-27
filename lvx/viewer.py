@@ -52,7 +52,8 @@ def _matcher(q, regex, case):
     return lambda s: ql in s.lower()
 
 
-def view(full, offset=0, limit=500, q='', regex=False, case=False, level=None, start=None, end=None, around=None):
+def view(full, offset=0, limit=500, q='', regex=False, case=False, level=None, start=None, end=None, around=None, year=None):
+    YEAR = year or globals()['YEAR']      # year-less syslog lines (XCP-ng) take the incident's year when the caller knows it
     limit = max(1, min(int(limit), 5000))
     match = _matcher(q, regex, case)
     minlv = LEVEL_NUM.get(level or 'debug', 0)

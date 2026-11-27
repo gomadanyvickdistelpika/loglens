@@ -10,7 +10,10 @@ import tarfile
 import time
 from calendar import timegm
 
+from . import packs
+
 _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'case_templates.json')
+_PATH_VATES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'case_templates_vates.json')
 ANCHOR = timegm((2026, 3, 10, 10, 0, 0))     # incident time used by every template bundle
 _cache = None
 
@@ -29,11 +32,38 @@ _VC_NOISE = {
 }
 
 
+_XCP_NOISE = {
+    'var/log/xensource.log': ['{s} xcp01 xapi: [ info|xcp01.lab.example|{n} ||xapi] Event.next completed in 12ms',
+                              '{s} xcp01 xenopsd-xc: [debug|xcp01.lab.example|{n} ||xenops] VM {n} state is running',
+                              '{s} xcp01 xapi: [ info|xcp01.lab.example|{n} ||pool_db_sync] sync completed'],
+    'var/log/SMlog': ['{s} xcp01 SM: [{n}] lock: opening lock file /var/lock/sm/{n}/sr',
+                      '{s} xcp01 SMGC: [{n}] Running garbage collector for SR check, nothing to do',
+                      '{s} xcp01 SM: [{n}] sr_scan completed'],
+    'var/log/daemon.log': ['{s} xcp01 stunnel: LOG5[{n}]: Service [xapi] accepted connection from 192.0.2.{c}'],
+}
+_XO_NOISE = {
+    'xo/journalctl-xo-server.txt': ['{s} xo01 xo-server[771]: {u} xo:main INFO http://[::]:80 listening',
+                                    '{s} xo01 xo-server[771]: {u} xo:xo-server INFO new client connected ({n})',
+                                    '{s} xo01 xo-server[771]: {u} xo:api INFO xapi event loop ok'],
+}
+
+
 def _load():
+    """Combined template set: the VMware case templates plus (when the Vates pack is enabled) the XCP-ng / Xen Orchestra scenarios."""
     global _cache
     if _cache is None:
-        with open(_PATH, encoding='utf-8') as f:
-            _cache = json.load(f)
+        d = None
+        if packs.enabled('vmware'):
+            with open(_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+        if packs.enabled('vates'):
+            with open(_PATH_VATES, encoding='utf-8') as f:
+                v = json.load(f)
+            if d is None:
+                d = v
+            else:
+                d = dict(d, templates=d['templates'] + v['templates'], source=d['source'] + ' + ' + v['source'])
+        _cache = d
     return _cache
 
 
@@ -79,6 +109,10 @@ def build_bundle(template, out_dir, days=3, step=120, seed=11, anchor=ANCHOR):
         noise.update(_VC_NOISE)
     if t['product'] == 'guest':
         noise.update(_ESX_NOISE)
+    if t['product'] in ('xcpng', 'vates'):
+        noise.update(_XCP_NOISE)
+    if t['product'] in ('xo', 'vates'):
+        noise.update(_XO_NOISE)
     files = {}
     ts = anchor - days * 86400
     end = anchor + 3600
@@ -107,3 +141,8 @@ def pack_tgz(src_dir, out_path, inner='bundle'):
     with tarfile.open(out_path, 'w:gz') as tf:
         tf.add(src_dir, arcname=inner)
     return out_path
+
+
+def pack_templates(pack):
+    """Templates belonging to one rule pack ('vmware' or 'vates')."""
+    return [t for t in all_templates() if packs.group(t['product']) == pack]

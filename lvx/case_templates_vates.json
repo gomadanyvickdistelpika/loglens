@@ -1,0 +1,1182 @@
+{
+ "version": 1,
+ "source": "SYNTHETIC scenarios CT-50..CT-68 built from public Vates / XCP-ng / Xen Orchestra web-search summaries (hostnames lab.example, addresses 192.0.2.x). Log lines are approximations of real error names, not copied from real logs; they are not resolved support cases.",
+ "templates": [
+  {
+   "id": "CT-50",
+   "title": "XCP-ng host: dom0 filesystem full, xapi will not come back after a toolstack restart",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "Host xcp01 is unreachable in Xen Orchestra. xe commands fail with \"Connection refused\" and the control-domain disk usage alarm fired earlier.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.host_disk_full",
+    "xcp.xapi_down"
+   ],
+   "expect_snapshot": false,
+   "match": "No space left|Control Domain|Connection refused|var/log",
+   "noise": "auto",
+   "lines": [
+    [
+     -5400,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|3321 ||xapi] Could not write database: No space left on device",
+     "typical"
+    ],
+    [
+     -5300,
+     "var/log/messages",
+     "{s} xcp01 xcp-ng: Disk Usage for Control Domain on server xcp01.lab.example has reached 98%",
+     "typical"
+    ],
+    [
+     -5000,
+     "var/log/daemon.log",
+     "{s} xcp01 xapi: Connection refused (calling connect )",
+     "typical"
+    ],
+    [
+     -4800,
+     "var/log/xensource.log",
+     "{s} xcp01 xe-toolstack-restart: [warning] xapi did not come back after the restart; /var/log is 100% full",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the forum summaries a full /var/log (or /) stops xapi and logging; one thread needed a host reboot even after space was freed. Typical sources named: SR.scan log spam on the pool master and old guest tools.",
+   "resolution": [
+    "df -h and du -xh /var/log | sort -h | tail to find what filled the partition.",
+    "Free the space (rotate/remove oversized logs).",
+    "If the log spam came from frequent SR scans on the pool master, lower the rate: xe host-param-set other-config:auto-scan-interval=120 uuid=<host uuid> (forum report).",
+    "Restart the toolstack (xe-toolstack-restart; check xe task-list first) or reboot the host if xapi still does not start."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/3028/logs-partition-full",
+     "title": "Logs Partition Full",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/4734/toolstack-reboot-and-100-disk-usage-bad-idea",
+     "title": "toolstack-reboot and 100% disk usage. Bad idea",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/11630/log_fs_usage-var-log-directory-on-pool-master-filling-up-constantly/13",
+     "title": "log_fs_usage / /var/log directory on pool master filling up constantly",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-51",
+   "title": "XCP-ng pool: member host cannot reach the pool master after a power event",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "After a power event the member host xcp02 reports that the pool master is unreachable and Xen Orchestra lost the pool. The master xcp01 was rebooted.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.master_unreachable"
+   ],
+   "expect_snapshot": false,
+   "match": "pool master|coordinator|emergency|HOST_IS_SLAVE",
+   "noise": "auto",
+   "lines": [
+    [
+     -3000,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|88 ||xapi] Unable to contact the pool master xcp01.lab.example (192.0.2.11): connection timed out",
+     "typical"
+    ],
+    [
+     -2900,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|90 ||xapi] Lost contact with the pool master; entering emergency mode",
+     "typical"
+    ],
+    [
+     -2800,
+     "var/log/daemon.log",
+     "{s} xcp02 xapi: [ warn|xcp02.lab.example|91 ||xapi] HOST_IS_SLAVE: this host cannot execute the request, the master is 192.0.2.11",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the forum/docs summaries: the member cannot reach the coordinator. Community reports resolved it with an emergency network reset on the affected host or on the master; if the master is truly dead a survivor is promoted manually.",
+   "resolution": [
+    "Check whether the master is alive (xapi on xcp01, management bond/VLAN) before promoting anything.",
+    "If HA is enabled: xe host-emergency-ha-disable force=true, then xe-toolstack-restart.",
+    "Community fix: emergency network reset on the affected host (after a toolstack restart on the master did not help), then reboot the other members once the master is back.",
+    "Only if the master is dead: xe pool-emergency-transition-to-master uuid=<host uuid> on a survivor, then xe pool-emergency-reset-master master-address=<new master> on the others; later xe host-forget the old master."
+   ],
+   "kb": [
+    {
+     "id": "https://docs.xcp-ng.org/troubleshooting/troubleshooting-ha/",
+     "title": "High availability (HA) - XCP-ng troubleshooting docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/4075/pool-master-down-what-steps-need-done-next",
+     "title": "Pool master down, what steps need done next?",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/8694/hosts-in-a-pool-have-gone-offline-after-reboot",
+     "title": "Hosts in a pool have gone offline after reboot",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-52",
+   "title": "XCP-ng HA: hosts self-fence and reboot after a short management-network outage",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "Hosts in an HA-enabled pool rebooted and their VMs were restarted elsewhere. The network team reports a short switch outage on the management VLAN.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.ha_fence",
+    "xcp.master_unreachable"
+   ],
+   "expect_snapshot": false,
+   "match": "xha|fenc|liveset|heartbeat",
+   "noise": "auto",
+   "lines": [
+    [
+     -1800,
+     "var/log/xha.log",
+     "{s} xcp03 xhad: [warning] heartbeat from host xcp01 lost on the management interface (xha)",
+     "typical"
+    ],
+    [
+     -1790,
+     "var/log/xha.log",
+     "{s} xcp03 xhad: statefile access failed: heartbeat disk unreachable",
+     "typical"
+    ],
+    [
+     -1780,
+     "var/log/xha.log",
+     "{s} xcp03 xhad: Could not join the liveset: the HA daemon could not access the heartbeat disk",
+     "typical"
+    ],
+    [
+     -1770,
+     "var/log/xha.log",
+     "{s} xcp03 xhad: host xcp03.lab.example self-fencing: initiating hard reboot",
+     "typical"
+    ],
+    [
+     -1500,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|55 ||xapi] Lost contact with the pool master",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the docs summary: a host that loses both the network heartbeat (UDP on the management interface) and the storage heartbeat (ha-statefile) within the timeout (default 60 s) treats itself as problematic and does a hard reboot (self-fence).",
+   "resolution": [
+    "Read /var/log/xha.log on each host to see who self-fenced and who asked whom to reboot.",
+    "Fix the management network / bond path and confirm every host can reach the heartbeat SR.",
+    "Docs recommend at least 3 hosts; with two, a lost link can get hosts fenced.",
+    "To stabilise while investigating: xe host-emergency-ha-disable force=true and xe-toolstack-restart; re-enable with xe pool-ha-enable heartbeat-sr-uuid=<sr uuid>."
+   ],
+   "kb": [
+    {
+     "id": "https://docs.xcp-ng.org/management/ha/",
+     "title": "High availability - XCP-ng docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/blog/2024/08/22/xcp-ng-high-availability-a-guide/",
+     "title": "XCP-ng High Availability: a guide",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/12483/ha-causes-reboot-of-xcp-ng-nodes",
+     "title": "HA causes reboot of xcp-ng nodes",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-53",
+   "title": "XCP-ng storage: SR almost full, coalesce stuck, then a VM will not start",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "A VM will not start after a backup job. The NFS storage repository is almost full and backups began failing earlier this week.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.sr_full",
+    "xcp.coalesce_stuck",
+    "xcp.vm_start_fail",
+    "xcp.sr_chain"
+   ],
+   "expect_snapshot": false,
+   "match": "Insufficient space|SR_BACKEND_FAILURE|coalesce|HVM boot",
+   "noise": "auto",
+   "lines": [
+    [
+     -7200,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [21433] Insufficient space on SR 0a1b2c3d-1111-2222-3333-444455556666: SR_BACKEND_FAILURE_44",
+     "typical"
+    ],
+    [
+     -5400,
+     "var/log/SMlog",
+     "{s} xcp01 SMGC: [30112] Unable to coalesce 8f7e6d5c: no space to leaf-coalesce, the SR is full",
+     "typical"
+    ],
+    [
+     -5300,
+     "var/log/SMlog",
+     "{s} xcp01 SMGC: [30112] UNDO LEAF-COALESCE of 8f7e6d5c",
+     "typical"
+    ],
+    [
+     -3600,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [22001] Raising exception: the snapshot chain is too long (SR_BACKEND_FAILURE_109)",
+     "typical"
+    ],
+    [
+     -600,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|7001 ||xenops] Failed to start the VM app01: HVM boot failed (the VDI cannot be activated, the SR has no free space)",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the summaries: coalesce (which frees snapshot space) runs after a snapshot is deleted and can fail when the SR lacks free space, which keeps the SR full and lets VDI chains grow; SR_BACKEND_FAILURE_44 means insufficient space. The VM failing to start is the downstream symptom.",
+   "resolution": [
+    "Free space on the SR first: move VMs/disks to another SR (also forces a coalesce) or delete old snapshots, keeping the base and latest.",
+    "Rescan the SR to restart the garbage collector; shut the VMs down before rescanning for a better chance of offline coalesce (user report).",
+    "Keep roughly 30% free (XO docs summary); thin-provisioned local ext is more forgiving than thick LVM (Vates staff in a thread).",
+    "Then start the VM and review backup schedules that created the snapshots."
+   ],
+   "kb": [
+    {
+     "id": "https://xen-orchestra.com/docs/backup_troubleshooting.html",
+     "title": "Backup troubleshooting - Xen Orchestra docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/10489/issue-with-sr-and-coalesce/21?page=1",
+     "title": "Issue with SR and coalesce",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/11226/some-backups-failing",
+     "title": "Some backups failing",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-54",
+   "title": "XCP-ng / XO: delta backups skipped to protect a long VDI chain, coalesce timing out",
+   "product": "vates",
+   "version": "8.x",
+   "issue": "Delta backups of one VM fail or are skipped. Xen Orchestra reports an unhealthy VDI chain and the SR Advanced tab shows a growing \"VDI to coalesce\" count.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup"
+   ],
+   "expect_snapshot": false,
+   "match": "coalesce|chain",
+   "noise": "auto",
+   "lines": [
+    [
+     -4000,
+     "var/log/SMlog",
+     "{s} xcp01 SMGC: [4411] Exception while coalescing VDI 11aa22bb: leaf-coalesce timed out",
+     "typical"
+    ],
+    [
+     -3900,
+     "var/log/SMlog",
+     "{s} xcp01 SMGC: [4411] UNDO LEAF-COALESCE of 11aa22bb",
+     "typical"
+    ],
+    [
+     -3000,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [4502] Raising exception: the snapshot chain is too long (SR_BACKEND_FAILURE_109)",
+     "typical"
+    ],
+    [
+     -1800,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:30:01.000Z xo:backups:worker WARN Backup skipped to protect VDI chain: unhealthy VDI chain on SR nfs-sr01",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the XO docs summary: XCP-ng caps a VHD chain at 30 elements; the error is a protection and a stuck coalesce is the usual cause. A corrupted VDI can stop the garbage collector (Vates engineer in a thread).",
+   "resolution": [
+    "Check the \"VDI to coalesce\" count on the SR Advanced tab in XO; if it does not fall over time, grep /var/log/SMlog for exceptions and UNDO LEAF-COALESCE.",
+    "ps axf | grep vhd shows whether a coalesce is running; rescan the SR to trigger one.",
+    "As a last resort migrate the VM disks to another SR to force a coalesce (XO docs).",
+    "A 8.3 leaf-coalesce timeout workaround (LIVE_LEAF_COALESCE_* in cleanup.py) exists in a forum thread but is unofficial; back up first."
+   ],
+   "kb": [
+    {
+     "id": "https://xen-orchestra.com/docs/backup_troubleshooting.html",
+     "title": "Backup troubleshooting - Xen Orchestra docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/10271/sr-garbage-collection-running-permanently",
+     "title": "SR Garbage Collection running permanently",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/4177/error-sr_backend_failure_109-the-snapshot-chain-is-too-long",
+     "title": "Error: SR_BACKEND_FAILURE_109(, The snapshot chain is too long, )",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-55",
+   "title": "XCP-ng storage: iSCSI SR will not re-attach after a host reboot",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "After a host reboot the iSCSI storage repository shows as unplugged and the VMs on it will not start. Plugging the PBD fails.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.sr_unplugged"
+   ],
+   "expect_snapshot": false,
+   "match": "PBD|iscsi|by-scsid|nfs",
+   "noise": "auto",
+   "lines": [
+    [
+     -2400,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|120 ||xapi] PBD_PLUG_FAILED: the SR iscsi-sr01 could not be attached",
+     "typical"
+    ],
+    [
+     -2390,
+     "var/log/SMlog",
+     "{s} xcp02 SM: [8812] iscsiadm login failed: iSCSI login to 192.0.2.50:3260 timed out",
+     "typical"
+    ],
+    [
+     -2380,
+     "var/log/SMlog",
+     "{s} xcp02 SM: [8812] SR is not available: /dev/disk/by-scsid/360000000000000000e00000000010001 does not exist",
+     "typical"
+    ],
+    [
+     -2300,
+     "var/log/kern.log",
+     "{s} xcp02 kernel: nfs: server 192.0.2.60 not responding, timed out",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the summaries no single cause: an iSCSI login/discovery problem (CHAP), a missing /dev/disk/by-scsid device, a hung iscsid, stale NFS mounts, or damaged LVM metadata on a local drive.",
+   "resolution": [
+    "Run xe pbd-plug while watching xensource.log and SMlog.",
+    "iSCSI: check iscsiadm -m session, run sendtargets discovery first (it made pbd-plug work once, but the failure returned at every reboot), check whether iscsid is hung.",
+    "NFS: unmount the stale path then reconnect; consider hard mount options.",
+    "The iSCSI-after-reboot case in the GitHub issue had no confirmed permanent fix in the search summary."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/10903/how-to-re-attach-an-sr",
+     "title": "How to Re-attach an SR",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://github.com/xcp-ng/xcp/issues/260",
+     "title": "After upgrade to 8.0: iSCSI connection fails after reboot · Issue #260 · xcp-ng/xcp",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/5981/unstable-nfs-sr-mounts",
+     "title": "Unstable NFS SR mounts",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-56",
+   "title": "XCP-ng VM: a 16 GB VM will not start although the host seems to have free RAM",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "Starting a large VM on host xcp02 from Xen Orchestra fails with a \"not enough free memory\" error although the host seems to have free RAM.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.vm_no_memory",
+    "xcp.vm_start_fail"
+   ],
+   "expect_snapshot": false,
+   "match": "HOST_NOT_ENOUGH_FREE_MEMORY|not enough",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|2201 ||xapi] VM.start failed: HOST_NOT_ENOUGH_FREE_MEMORY (required 17179869184, available 12884901888)",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/log/xensource.log",
+     "{s} xcp02 xapi: [error|xcp02.lab.example|2201 ||xapi] Unable to start the VM db01: not enough host memory",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the summaries: the memory is already committed (dynamic-max of all running VMs plus dom0), or state is stale after migrations; a toolstack restart fixed one case.",
+   "resolution": [
+    "Compare xe host-list params=memory-free with xe vm-compute-maximum-memory for the VM.",
+    "Restart the toolstack (or reboot the host) and retry; consider static memory instead of a dynamic range.",
+    "On a smaller second host, dom0 memory also reduces what a 16 GB VM can use."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/3991/not-enough-server-memory-when-start-vm",
+     "title": "Not enough server memory when start VM",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/9929/xcp-ng-host-ram",
+     "title": "xcp-ng host RAM",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-57",
+   "title": "XCP-ng VM: live storage migration of a busy VM fails with MIRROR_FAILED",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "Live migration (with storage) of a large, write-heavy database VM fails after many hours and Xen Orchestra reports MIRROR_FAILED.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.migrate_fail"
+   ],
+   "expect_snapshot": false,
+   "match": "MIRROR_FAILED|VM_MIGRATE_FAILED",
+   "noise": "auto",
+   "lines": [
+    [
+     -1200,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|9100 ||xapi] Storage migration: MIRROR_FAILED, the block mirror could not keep up with the writes of the VM",
+     "typical"
+    ],
+    [
+     -1190,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|9100 ||xapi] VM.migrate_send failed: VM_MIGRATE_FAILED",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the forum summary (Vates CEO): a live storage migration replicates blocks while the VM runs; if the VM writes faster than the mirror copies, the migration fails.",
+   "resolution": [
+    "Use warm migration for very large or write-heavy VMs (suggested in the thread).",
+    "Read /var/log/xensource.log on the source host for the underlying error.",
+    "A VM left looking running after the failure: xe vm-reset-powerstate or a toolstack restart (other threads)."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/9801/live-migration-fails-mirror_failed",
+     "title": "Live Migration Fails: MIRROR_FAILED",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/6496/vm-migrate-problem",
+     "title": "VM Migrate problem",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-58",
+   "title": "XCP-ng update: Rolling Pool Update stops on the second host (yum error, evacuation blocked)",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "A Rolling Pool Update started from Xen Orchestra stopped on the second host. The task is stuck and yum reports errors.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.update_fail",
+    "xcp.vm_no_memory"
+   ],
+   "expect_snapshot": false,
+   "match": "yum|repository|evacuate|EVACUATE",
+   "noise": "auto",
+   "lines": [
+    [
+     -4000,
+     "var/log/daemon.log",
+     "{s} xcp02 yum: Cannot retrieve repository metadata (repomd.xml) for repository xcp-ng-updates: HTTP Error 500",
+     "typical"
+    ],
+    [
+     -3900,
+     "var/log/daemon.log",
+     "{s} xcp02 yum: Transaction check error: incomplete transactions found",
+     "typical"
+    ],
+    [
+     -3500,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|4400 ||xapi] host.evacuate failed: CANNOT_EVACUATE_HOST (VM app02 cannot be migrated: HOST_NOT_ENOUGH_FREE_MEMORY)",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the summaries: repository mirror HTTP 500 errors, stale or incomplete yum transactions, backups running during the RPU, and, with HA enabled, HOST_NOT_ENOUGH_FREE_MEMORY during evacuation.",
+   "resolution": [
+    "Clean up incomplete yum transactions and run yum clean all, then update again.",
+    "Disable HA and scheduled backups/replication before a rolling pool update.",
+    "Manual fallback from forum staff: on each host yum update with the xcp-ng-base and xcp-ng-updates repos, migrate VMs away, reboot, repeat.",
+    "CANNOT_EVACUATE_HOST caused by CPU features: shut the VM down and boot it again."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/9501/rolling-pool-update-failed",
+     "title": "Rolling Pool Update Failed",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://docs.xcp-ng.org/management/updates/",
+     "title": "Updates - XCP-ng docs",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/12136/rpu-failure-on-8.3-yum-https-500-error-for-xo-lite-package-hung-task",
+     "title": "RPU Failure on 8.3: Yum HTTPS 500 Error for xo-lite package (Hung Task)",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-59",
+   "title": "Xen Orchestra: scheduled delta backups to an NFS remote fail with VDI_IO_ERROR",
+   "product": "xo",
+   "version": "XO",
+   "issue": "Scheduled delta backups from Xen Orchestra to an NFS remote fail every night with VDI_IO_ERROR (Device I/O errors).",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xo_backup"
+   ],
+   "expect_snapshot": false,
+   "match": "VDI_IO_ERROR|remote",
+   "noise": "auto",
+   "lines": [
+    [
+     -28000,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T02:14:09.512Z xo:backups:worker ERROR Backup job nightly-delta failed: VDI_IO_ERROR(Device I/O errors)",
+     "typical"
+    ],
+    [
+     -27990,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T02:14:10.002Z xo:backups:worker WARN remote nfs-backup01 was disconnected (ESTALE) during the export",
+     "typical"
+    ],
+    [
+     -27900,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [5521] VDI_IO_ERROR: reading the VHD of VM db01 failed",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the XO docs summary: VDI_IO_ERROR comes from the host (dom0), not XO; the host could not read the disk during the HTTP export. Named causes: corrupted VDI or a race during snapshots, a too-slow SR, a long job timeout with a slow remote.",
+   "resolution": [
+    "grep -i error /var/log/SMlog on the host for coalesce or VDI corruption.",
+    "Check the job timeout and whether jobs overlap.",
+    "For an NFS remote a forum thread suggests a hard mount or adjusted soft timeout/retries (the pipe to the remote closed early and left a partial VHD)."
+   ],
+   "kb": [
+    {
+     "id": "https://xen-orchestra.com/docs/backup_troubleshooting.html",
+     "title": "Backup troubleshooting - Xen Orchestra docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://github.com/vatesfr/xen-orchestra/issues/3242",
+     "title": "[Backup Ng deltaBackup] VDI_IO_ERROR(Device I/O errors) · Issue #3242 · vatesfr/xen-orchestra",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/2991/vdi_io_error-device-i-o-errors-when-you-run-scheduled-backup/55",
+     "title": "VDI_IO_ERROR(Device I/O errors) when you run scheduled backup",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-60",
+   "title": "Xen Orchestra cannot connect to a pool after its host certificate was replaced (TLS error)",
+   "product": "xo",
+   "version": "XO",
+   "issue": "After the certificate on the pool master was replaced, Xen Orchestra shows the pool as disconnected with a TLS error.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xo_tls"
+   ],
+   "expect_snapshot": false,
+   "match": "SELF_SIGNED|UNABLE_TO_VERIFY|certificate",
+   "noise": "auto",
+   "lines": [
+    [
+     -900,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:45:11.002Z xo:xo-mixins:xen-servers WARN server 192.0.2.21 connection failed: DEPTH_ZERO_SELF_SIGNED_CERT",
+     "typical"
+    ],
+    [
+     -880,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:45:41.002Z xo:xo-mixins:xen-servers WARN server 192.0.2.21 connection failed: UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the summaries: since a 5.8.x release XO refuses to connect to a host whose certificate is invalid (self-signed or expired) unless that is explicitly allowed; the XCP-ng hosts own certificates are managed with xe commands on every host of the pool.",
+   "resolution": [
+    "Verify the new certificate, then either install a certificate XO trusts on every pool host or accept it via the warning/toggle in the XO server settings.",
+    "Plain HTTP also works but sends all traffic unencrypted.",
+    "Expired appliance certificate: regenerate cert.pem/key.pem with openssl and restart xo-server (docs summary)."
+   ],
+   "kb": [
+    {
+     "id": "https://xen-orchestra.com/blog/improving-security-in-xen-orchestra/",
+     "title": "Improving security in Xen Orchestra",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xen-orchestra.com/docs/troubleshooting.html",
+     "title": "Troubleshooting - Xen Orchestra docs",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-61",
+   "title": "Xen Orchestra from sources: yarn build fails (node version / native module)",
+   "product": "xo",
+   "version": "XO",
+   "issue": "After pulling the latest Xen Orchestra sources, yarn build fails and xo-server does not start.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xo_build"
+   ],
+   "expect_snapshot": false,
+   "match": "engine|gyp|node",
+   "noise": "auto",
+   "lines": [
+    [
+     -2000,
+     "xo/xo-install.log",
+     "{s} xo01 xo-install[1201]: error xo-server: The engine \"node\" is incompatible with this module. Expected version \">=14.5\". Got \"12.20.2\"",
+     "typical"
+    ],
+    [
+     -1990,
+     "xo/xo-install.log",
+     "{s} xo01 xo-install[1201]: error Found incompatible module.",
+     "typical"
+    ],
+    [
+     -1900,
+     "xo/xo-install.log",
+     "{s} xo01 xo-install[1201]: gyp ERR! build error",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the search summaries: the node version does not satisfy the module engine requirement (the example in the summary was Expected \">=14.5\", Got \"12.20.2\"), or native modules fail to compile on an unsupported node.",
+   "resolution": [
+    "Install a node version that satisfies the engine requirement named in the error.",
+    "Clean rebuild per the docs: remove node_modules, run yarn, then yarn build.",
+    "If a recent commit broke the build, check out a known-good commit (issue report)."
+   ],
+   "kb": [
+    {
+     "id": "https://docs.xen-orchestra.com/getting-started/install-from-sources",
+     "title": "Installing XO from source",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://github.com/ronivay/XenOrchestraInstallerUpdater/issues/62",
+     "title": "Build fails with error · Issue #62 · ronivay/XenOrchestraInstallerUpdater",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-62",
+   "title": "XOA update fails: updater cannot reach xen-orchestra.com (TLS-intercepting proxy)",
+   "product": "xo",
+   "version": "XO",
+   "issue": "Updating the Xen Orchestra Appliance from the Updates page fails. A transparent proxy was recently introduced.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xoa_update"
+   ],
+   "expect_snapshot": false,
+   "match": "xoa-updater|xen-orchestra",
+   "noise": "auto",
+   "lines": [
+    [
+     -1500,
+     "xo/journalctl-xoa-updater.txt",
+     "{s} xoa xoa-updater[412]: ERROR unable to reach xen-orchestra.com: self signed certificate in certificate chain",
+     "typical"
+    ],
+    [
+     -1490,
+     "xo/journalctl-xoa-updater.txt",
+     "{s} xoa xoa-updater[412]: ERROR upgrade failed, see xoa check",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the XO docs summary: proxies often break the updater with SSL/TLS errors; other named causes are a corrupted or missing package, no access to xen-orchestra.com and nodejs.org on 443, and a missing registration.",
+   "resolution": [
+    "Run xoa check and journalctl -u xoa-updater -f -n 50 while reproducing.",
+    "Allow the proxy to pass xen-orchestra.com and nodejs.org untouched, or (lower security) set NODE_TLS_REJECT_UNAUTHORIZED=0 in /etc/xo-appliance/env and restart xoa-updater.",
+    "Delete /var/lib/xoa-updater/update.json and run xoa-updater --upgrade for a fresh download."
+   ],
+   "kb": [
+    {
+     "id": "https://docs.xen-orchestra.com/getting-started/troubleshooting",
+     "title": "Troubleshooting - Xen Orchestra docs",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xen-orchestra.com/docs/updater.html",
+     "title": "Updates - Xen Orchestra docs",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-63",
+   "title": "Xen Orchestra: update and nightly backups fail with ENOSPC (appliance or remote out of space)",
+   "product": "xo",
+   "version": "XO",
+   "issue": "Updating Xen Orchestra fails with \"ENOSPC: no space left on device\" and the nightly backup job starts failing as well.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xo_disk_full"
+   ],
+   "expect_snapshot": false,
+   "match": "ENOSPC|no space left|is full",
+   "noise": "auto",
+   "lines": [
+    [
+     -3000,
+     "xo/xo-install.log",
+     "{s} xo01 xo-install[1301]: error ENOSPC: no space left on device, write",
+     "typical"
+    ],
+    [
+     -2000,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:26:40.000Z xo:backups:worker ERROR Backup job nightly failed: ENOSPC: no space left on device, write",
+     "typical"
+    ],
+    [
+     -1990,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:26:50.000Z xo:backups:worker ERROR remote nfs-backup01 is full",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Only the thread titles were seen in search results (an XO update failing with ENOSPC; a backup error although space seemed available); the article text was not read, so no documented cause is claimed.",
+   "resolution": [
+    "Generic check, not taken from the cited threads: df -h on the XO appliance and on the backup remote, free space, then rerun the failed update or job."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device",
+     "title": "Xen Orchestra Update Failed - Error: ENOSPC: no space left on device",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/5788/backup-error-with-space-available",
+     "title": "Backup error with space available",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-64",
+   "title": "XCP-ng storage: array LUN change, multipath paths fail, the iSCSI SR drops after switch maintenance",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "After switch maintenance an iSCSI storage repository on host xcp02 went offline and its VMs froze.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.lun_change",
+    "xcp.multipath_fail",
+    "xcp.sr_unplugged"
+   ],
+   "expect_snapshot": false,
+   "match": "multipath|LUN assignments|by-scsid",
+   "noise": "auto",
+   "lines": [
+    [
+     -3000,
+     "var/log/kern.log",
+     "{s} xcp02 kernel: scsi 3:0:0:1: Warning! Received an indication that the LUN assignments on this target have changed. The Linux SCSI layer does not automatically remap LUN assignments.",
+     "typical"
+    ],
+    [
+     -2400,
+     "var/log/kern.log",
+     "{s} xcp02 kernel: device-mapper: multipath: Failing path 8:32.",
+     "typical"
+    ],
+    [
+     -2390,
+     "var/log/messages",
+     "{s} xcp02 multipathd[812]: mpatha: remaining active paths: 0",
+     "typical"
+    ],
+    [
+     -2300,
+     "var/log/SMlog",
+     "{s} xcp02 SM: [8812] SR is not available: /dev/disk/by-scsid/360000000000000000e00000000010001 does not exist",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the read of the community health check: it watches kern.log for the LUN-assignments-changed message and for \"device-mapper: multipath: Failing path\", and flags maps with no usable path or path counts that differ between hosts. Link between them and the SR dropping is this scenario's assumption, not stated in the repo.",
+   "resolution": [
+    "Check multipath -ll on every host: a map with no usable path, or path counts that differ between hosts.",
+    "Verify with the storage team whether the LUN mapping was changed on purpose before re-plugging the SR."
+   ],
+   "kb": [
+    {
+     "id": "https://github.com/Fohdeesha/xcp-stuff",
+     "title": "Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)",
+     "role": "primary",
+     "seen": "2026-10-13"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/10903/how-to-re-attach-an-sr",
+     "title": "How to Re-attach an SR",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full. This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13."
+  },
+  {
+   "id": "CT-65",
+   "title": "XCP-ng storage: leaked datapath after an aborted backup, later attaches and backups fail",
+   "product": "vates",
+   "version": "8.3",
+   "issue": "Nightly backups of one VM fail and the VM will not start again on host xcp01 after a failed export; its disk shows as still in use.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.datapath_leak",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "expect_snapshot": false,
+   "match": "detached cleanly|still open|blocked by PID|No such Tapdisk|Illegal_transition|VDI_IO_ERROR|Failed to start",
+   "noise": "auto",
+   "lines": [
+    [
+     -3000,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [30112] VDI 6b5a4c3d is not detached cleanly, still open on host",
+     "typical"
+    ],
+    [
+     -2990,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [30113] Failed to lock /var/lock/sm/0a1b2c3d/sr on first attempt, blocked by PID 4411",
+     "typical"
+    ],
+    [
+     -2980,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [30113] tap.deactivate: Warning, No such Tapdisk(minor=5)",
+     "typical"
+    ],
+    [
+     -2970,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|9901 ||storage_access] Illegal_transition: Attached -> Activated",
+     "typical"
+    ],
+    [
+     -2000,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:26:40.000Z xo:backups:worker ERROR Backup job nightly failed: VDI_IO_ERROR(Device I/O errors)",
+     "typical"
+    ],
+    [
+     -600,
+     "var/log/xensource.log",
+     "{s} xcp01 xapi: [error|xcp01.lab.example|9944 ||xapi] Failed to start the VM web07: the VDI cannot be attached on this host",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the read of the community storage-state-fixer.py: dead dom0 datapaths, stale dom0 VBDs, paused or wedged tapdisks and stuck GC flags make exports, backups and VBD unplugs fail; with other datapaths present xapi refuses the state change (Illegal_transition), the VDI is marked leaked and later attaches on that host fail. The tool is for XCP-ng 8.3 only.",
+   "resolution": [
+    "Identify the VDI and tapdisk (tap-ctl list) and confirm no VM really uses it before touching anything.",
+    "The third-party storage-state-fixer.py reports what it found and changes things only after you type yes (it restarts xapi on that host; HA is turned off and on around it): read it and test on a lab host first."
+   ],
+   "kb": [
+    {
+     "id": "https://github.com/Fohdeesha/xcp-stuff",
+     "title": "Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)",
+     "role": "primary",
+     "seen": "2026-10-13"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full. This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13."
+  },
+  {
+   "id": "CT-66",
+   "title": "XCP-ng host: dom0 OOM-kills xapi, xe commands time out and XO shows the host disconnected",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "xe commands on host xcp01 time out and Xen Orchestra shows the host as disconnected; the host has been up for months.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.dom0_oom",
+    "xcp.xapi_down"
+   ],
+   "expect_snapshot": false,
+   "match": "oom|Out of memory|xapi",
+   "noise": "auto",
+   "lines": [
+    [
+     -2400,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: xapi invoked oom-killer: gfp_mask=0x24201ca, order=0, oom_score_adj=0",
+     "typical"
+    ],
+    [
+     -2399,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: Out of memory: Killed process 3321 (xapi) total-vm:2104576kB, anon-rss:1048576kB, file-rss:0kB",
+     "typical"
+    ],
+    [
+     -2300,
+     "var/log/daemon.log",
+     "{s} xcp01 systemd[1]: xapi.service: main process exited, code=killed, status=9/KILL",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the read of the community health check: it lists dmesg lines containing \"out of memory\" as OOM events and flags dom0 memory use above 65%. That xapi was the victim here is this scenario's assumption.",
+   "resolution": [
+    "Check dom0 memory use and what grew (top, xe-toolstack-restart only after reading the kernel log), then consider more dom0 memory.",
+    "Restart the toolstack once memory is understood; running VMs are not touched by a toolstack restart."
+   ],
+   "kb": [
+    {
+     "id": "https://github.com/Fohdeesha/xcp-stuff",
+     "title": "Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)",
+     "role": "primary",
+     "seen": "2026-10-13"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full. This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13."
+  },
+  {
+   "id": "CT-67",
+   "title": "XCP-ng host: CIFS ISO mount stalls, hung tasks and disk I/O errors in the kernel log",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "Host xcp01 becomes sluggish, the console hangs when browsing the ISO library and a local disk logs errors.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.mount_stall",
+    "xcp.io_error"
+   ],
+   "expect_snapshot": false,
+   "match": "has not responded|blocked for more than|I/O error|Input/output",
+   "noise": "auto",
+   "lines": [
+    [
+     -2400,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: CIFS: VFS: Server 192.0.2.70 has not responded in 180 seconds. Reconnecting...",
+     "typical"
+    ],
+    [
+     -2200,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: INFO: task tapdisk:2210 blocked for more than 120 seconds.",
+     "typical"
+    ],
+    [
+     -2100,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: blk_update_request: I/O error, dev sdb, sector 123456 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 0",
+     "typical"
+    ],
+    [
+     -2090,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [8812] Error: [Errno 5] Input/output error: /var/run/sr-mount/0a1b2c3d/6b5a4c3d.vhd",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the read of the community health check: it matches the CIFS message \"has not responded in\", the NFS \"not responding\" and the hung-task \"blocked for more than\", and its config comment warns the hung-task detector stops logging after a few warnings and can miss a long wedge. It also reports \"Input/output error\" in SMlog/xensource.log. Linking them to this symptom is the scenario's assumption.",
+   "resolution": [
+    "Probe each network mount with a stat and list processes in uninterruptible sleep (D state).",
+    "Check the file server and the disk behind the I/O errors (SMART, controller, array)."
+   ],
+   "kb": [
+    {
+     "id": "https://github.com/Fohdeesha/xcp-stuff",
+     "title": "Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)",
+     "role": "primary",
+     "seen": "2026-10-13"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full. This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13."
+  },
+  {
+   "id": "CT-68",
+   "title": "XCP-ng host: tapdisk crashes, the dom0 kernel then logs a panic / soft lockup",
+   "product": "xcpng",
+   "version": "8.x",
+   "issue": "A host rebooted by itself overnight and a VM disk process crashed shortly before.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.tapdisk_dead",
+    "xcp.kernel_fault"
+   ],
+   "expect_snapshot": false,
+   "match": "TapdiskNotRunning|tapdisk|soft lockup|Kernel panic|Call Trace",
+   "noise": "auto",
+   "lines": [
+    [
+     -2400,
+     "var/log/SMlog",
+     "{s} xcp01 SM: [9021] Raising exception [46, The VDI is not available [opterr=TapdiskNotRunning: Tapdisk(vhd:/dev/VG_XenStorage-0a1b/VHD-6b5a) minor=2]]",
+     "typical"
+    ],
+    [
+     -2390,
+     "var/log/daemon.log",
+     "{s} xcp01 systemd-coredump[5521]: Process 3321 (tapdisk) of user 0 dumped core.",
+     "typical"
+    ],
+    [
+     -1500,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: watchdog: BUG: soft lockup - CPU#3 stuck for 23s! [kworker/3:1:221]",
+     "typical"
+    ],
+    [
+     -1490,
+     "var/log/kern.log",
+     "{s} xcp01 kernel: Kernel panic - not syncing: Fatal exception in interrupt",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Per the read of the community health check: its config says TapdiskNotRunning means tapdisk died and pairs with a core.tapdisk.* dump, and it flags dmesg \"call trace\" lines, /var/crash and systemd coredumps. That the crash preceded the panic here is the scenario's assumption.",
+   "resolution": [
+    "Keep the core dump and /var/crash files; check hardware (memory, storage controller) and the tapdisk/driver named in the trace."
+   ],
+   "kb": [
+    {
+     "id": "https://github.com/Fohdeesha/xcp-stuff",
+     "title": "Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)",
+     "role": "primary",
+     "seen": "2026-10-13"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full. This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13."
+  }
+ ]
+}

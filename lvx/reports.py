@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 
+from . import vtlog, vtoolbox
 from .timeparse import parse_ts
 
 ALERT_RANK = {'critical': 3, 'error': 3, 'warning': 2, 'info': 0}
@@ -29,6 +30,8 @@ def read_report_text(path):
 
 def sniff(text):
     head = text[:4000]
+    if vtoolbox.sniff(text):
+        return 'vtoolbox'
     if '##Result Data Begin' in head or 'GSS Toolbox Version' in head:
         return 'toolbox'
     if 'Welcome to TD Log' in head or 'TD Log Report' in head or 'FaultFinder' in text[:200000]:
@@ -156,6 +159,8 @@ def parse_report_file(path, win_start=None, win_end=None):
         r = parse_toolbox(text, win_start, win_end)
     elif kind == 'tdlog':
         r = parse_tdlog(text, win_start, win_end)
+    elif kind == 'vtoolbox':
+        r = vtoolbox.parse_text(text)
     else:
         return None
     r['file'] = os.path.basename(path)
@@ -164,6 +169,10 @@ def parse_report_file(path, win_start=None, win_end=None):
 
 def report_findings(rep):
     """Normalise a parsed report into finding-like dicts for ranking alongside log findings."""
+    if rep['kind'] == 'vtoolbox':
+        return vtoolbox.report_findings(rep)
+    if rep['kind'] == 'vtlog':
+        return vtlog.report_findings(rep)
     out = []
     if rep['kind'] == 'toolbox':
         for m in rep['modules']:

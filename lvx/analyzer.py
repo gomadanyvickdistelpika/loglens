@@ -5,7 +5,7 @@ import re
 import time
 from collections import Counter, deque
 
-from . import kb, reports
+from . import kb, packs, reports, vtlog, vtoolbox
 from .bundle import open_text, looks_binary
 from .rules import R
 from .timeparse import parse_ts, fmt_ts
@@ -64,6 +64,17 @@ TOPIC_WORDS = {
     'performance': 'slow slowness performance latency lag hang hung timeout',
     'backup': 'backup snapshot veeam consolidation',
 }
+_VATES_WORDS = {
+    'storage': 'sr coalesce vdi pbd repository',
+    'network': 'bond',
+    'ha': 'fence fenced fencing xha pool master coordinator',
+    'vm': 'xenmotion',
+    'services': 'xapi toolstack xo-server',
+    'upgrade': 'rpu yum xoa build',
+    'backup': 'delta replication',
+}
+for _t, _w in _VATES_WORDS.items():
+    TOPIC_WORDS[_t] = TOPIC_WORDS.get(_t, '') + ' ' + _w
 STOP = set('the and for with from that this have has was were are not but when after before into than then them they their our out all any can could would should been being there here more some very just also over under about while which what who how why does did done'.split())
 
 
@@ -78,16 +89,17 @@ def issue_topics(issue):
         if words & wl or t in words:
             topics.add(t)
     for phrase, t in (('not responding', 'host-connection'), ('no healthy upstream', 'services'),
-                      ('all paths down', 'storage'), ('purple screen', 'crash'), ('log in', 'auth')):
+                      ('all paths down', 'storage'), ('purple screen', 'crash'), ('log in', 'auth'),
+                      ('pool master', 'ha'), ('toolstack', 'services'), ('self-fence', 'ha')):
         if phrase in low:
             topics.add(t)
     return topics, set(w for w in words if len(w) > 3 and w not in STOP)
 
 
 # ----------------------------------------------------------------------------- file selection
-_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning)(?:\.gz)?$', re.I)
+_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning|smlog(?:\.\d+)?)(?:\.gz)?$', re.I)
 _SKIP_DIR = re.compile(r'(?:^|/)(?:commands|etc|proc|sys|usr|lib|bin|sbin|tdlog/cert|reconciled|python|configuration|schema)(?:/|$)', re.I)
-_SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report)', re.I)
+_SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report|vates-?toolbox)', re.I)
 
 
 def is_log_candidate(rel):
@@ -100,8 +112,18 @@ def is_log_candidate(rel):
     return bool(_LOGNAME.search(base))
 
 
+_XCP_RX = re.compile(r'xensource|smlog|xapi|xenopsd|xha(?:\.|-|/)|xcp-ng|xcpng|(?:^|/)xen/(?:hypervisor|xenstored)|xen-bugtool|squeezed')
+_XO_RX = re.compile(r'xo-server|xo-web|xo-proxy|xen-?orchestra|xoa(?:-|\.|_|/)|xo_server|journalctl[-_.]?xo|xo/journalctl|xo-install|yarn')
+VATES = packs.VATES_PRODUCTS
+
+
 def classify_product(rel):
     low = rel.lower()
+    if packs.enabled('vates'):
+        if _XCP_RX.search(low):
+            return 'xcpng'
+        if _XO_RX.search(low):
+            return 'xo'
     if re.search(r'vmkernel|vmkwarning|hostd|vpxa|fdm|vobd|esxupdate|storagerm|hostprofile|/var/run/log|nfcd|vmware\.log|shell\.log|vmksummary', low):
         return 'esxi'
     if re.search(r'vpxd|vmware-vpx|vmware-sso|vmdird|vsphere-ui|vmon|postgres|vmware-sts|sts/|lookupsvc|vapi|vpxd-svcs|envoy|rhttpproxy|vsan-health|eam|content-library|certificate-manager|vmafdd|vmcad', low):
@@ -181,9 +203,17 @@ class Analyzer:
 
     # ---- scan helpers
     def _applicable(self, products):
+        groups = {packs.group(p) for p in products if p != 'unknown'}
         out = []
         for r in self.rules:
-            if r['product'] == 'both' or r['product'] in products or 'unknown' in products:
+            g = packs.group(r['product'])
+            if 'unknown' in products:         # unlabelled file (kern.log, messages...): rules of the pack(s) whose products the bundle contains
+                if g in (getattr(self, '_prod_groups', None) or ('vmware', 'vates')):
+                    out.append(r)
+            elif g == 'vates':                # every Vates rule applies to any XCP-ng / XO file (XO reports xapi/SR errors, hosts log XO-visible failures)
+                if 'vates' in groups:
+                    out.append(r)
+            elif r['product'] == 'both' and 'vmware' in groups or r['product'] in products:
                 out.append(r)
         return out
 
@@ -199,21 +229,29 @@ class Analyzer:
         products = Counter(classify_product(e['path']) for e in cand)
         prod_set = set(p for p in products if p != 'unknown')
         self.products = sorted(prod_set) or ['unknown']
+        self._prod_groups = {packs.group(p) for p in prod_set}
 
         # reference year + auto anchor from file tails
         tails = []
         for e in cand:
             if not e['path'].lower().endswith('.gz'):
-                ts = tail_ts(self.bundle.resolve(e['path']), 2000)
+                ts = tail_ts(self.bundle.resolve(e['path']), None)      # ISO-only tails are reliable for year inference
                 if ts:
                     tails.append(ts)
         # ISO-only tails are reliable for year inference
         now_year = time.gmtime().tm_year
-        ref_year = time.gmtime(max(tails)).tm_year if tails else now_year
+        if tails:
+            ref_year = time.gmtime(max(tails)).tm_year
+        elif self.anchor_user:
+            ref_year = time.gmtime(self.anchor_user).tm_year      # syslog-only bundles (XCP-ng): year-less lines take the incident's year
+        else:
+            ref_year = now_year
         tails = []
         for e in cand:
             if not e['path'].lower().endswith('.gz'):
                 ts = tail_ts(self.bundle.resolve(e['path']), ref_year)
+                if ts and ts > time.time() + 86400 and not self.anchor_user:
+                    ts = tail_ts(self.bundle.resolve(e['path']), ref_year - 1) or ts      # year-less December log read in January
                 if ts:
                     tails.append(ts)
         tails.sort()
@@ -231,6 +269,8 @@ class Analyzer:
         self.nb = 60
         self.bsize = max(60, (self.end - self.start) // self.nb + 1)
         self.ref_ts = (max(tails) if tails else self.anchor) + 86400
+        self.ref_year = ref_year
+        self._prod_set = prod_set
 
         n = len(cand)
         for i, e in enumerate(cand):
@@ -247,11 +287,29 @@ class Analyzer:
                     reps.append(rep)
             except Exception as ex:
                 self.skipped.append((e['path'], 'report: %s' % ex))
+        try:
+            reps += self._vates_reports(files, cand)
+        except Exception as ex:                       # the extra reports are a bonus: never let them break the analysis
+            self.skipped.append(('vates reports', 'error: %s' % ex))
         self.progress(0.95, 'Ranking')
         out = self._build(reps, cand, files)
         out['stats']['seconds'] = round(time.time() - t0, 2)
         self.progress(1.0, 'Done')
         return out
+
+    def _vates_reports(self, files, cand):
+        """Vates Toolbox (health modules from commands/ output, one per host / appliance) + VTLog (signature history over the whole bundle)."""
+        if not packs.enabled('vates'):
+            return []
+        has_vates = any(packs.group(p) == 'vates' for p in self._prod_set)
+        tb = vtoolbox.from_bundle(self.bundle, files, ref=self.anchor) if has_vates else []
+        if not has_vates and not tb:
+            return []
+        plain = [(e['path'], self.bundle.resolve(e['path'])) for e in cand if not e['path'].lower().endswith('.gz') and not _SKIP_NAME.search(os.path.basename(e['path']))]
+        vt = vtlog.scan(plain, lambda rel: [r for r in self._applicable({classify_product(rel)} | self._prod_set) if packs.group(r['product']) == 'vates'],
+                        self.ref_year, self.start, self.end)
+        vt['sections']['certificates'] = vtlog.certificates(tb)
+        return tb + ([vt] if vt['sections']['signatures'] or vt['sections']['certificates'] else [])
 
     def _scan(self, rel, rules):
         full = self.bundle.resolve(rel)
@@ -390,6 +448,11 @@ class Analyzer:
     _DF_NAME = re.compile(r'(?:^|/)(?:df|vdf|diskfree|disk_?free|disk_?space)[^/]*$', re.I)
     _DF_SKIP = re.compile(r'^/(?:dev|sys|proc|run|snap|boot/efi)(?:/|$)')
 
+    def _is_vates_file(self, rel):
+        """A df / command-output file counts as XCP-ng/XO when its path says so, or when it is unlabelled and the whole bundle is Vates."""
+        p = classify_product(rel)
+        return p in VATES or (p == 'unknown' and packs.vendor(None, getattr(self, 'products', ())) == 'vates')
+
     def _snapshots(self, files):
         found = []
         for e in files:
@@ -400,7 +463,7 @@ class Analyzer:
                 with open(self.bundle.resolve(rel), 'r', encoding='utf-8', errors='replace') as fh:
                     for n, line in enumerate(fh, 1):
                         m = self._DF_LINE.search(line)
-                        if m and int(m.group(1)) >= 95 and not self._DF_SKIP.match(m.group(2)):
+                        if m and int(m.group(1)) >= (75 if self._is_vates_file(rel) else 95) and not self._DF_SKIP.match(m.group(2)):
                             found.append((rel, n, line.rstrip('\n')[:300], int(m.group(1)), m.group(2)))
             except OSError:
                 continue
@@ -409,21 +472,42 @@ class Analyzer:
     def _snapshot_findings(self, found, corroborated):
         if not found:
             return []
+        out = []
+        vf = [f for f in found if self._is_vates_file(f[0])]
+        mf = [f for f in found if not self._is_vates_file(f[0])]
         rel = 25 if 'disk-space' in self.topics else 0
-        score = round(SEV_BASE['high'] + 20 + (10 if corroborated else 0) + rel, 1)
-        mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in found}))
-        return [dict(
-            id='snap.fs_full', title='Filesystem at/over 95%% in df output: %s' % mounts, source='command output', kind='snapshot',
-            severity='high', score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
-            count=len(found), strong=len(found), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
-            nearest_to_anchor_s=None, topics=['disk-space'],
-            advice='Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full /storage/seat, /storage/db or / stops vpostgres/vpxd and aborts upgrade imports; grow the disk or purge, then retry.',
-            kb=None, search='VCSA /storage/seat full increase VMDK',
-            files=[dict(file=r, count=1) for r in sorted({f[0] for f in found})][:5], variants=[],
-            samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in found[:3]],
-            spark=[0] * self.nb, _first=0)]
+        if mf:
+            score = round(SEV_BASE['high'] + 20 + (10 if corroborated else 0) + rel, 1)
+            mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in mf}))
+            out.append(self._snap_dict('snap.fs_full', 'Filesystem at/over 95%% in df output: %s' % mounts, 'high', score, rel, corroborated, mf,
+                       'Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full /storage/seat, /storage/db or / stops vpostgres/vpxd and aborts upgrade imports; grow the disk or purge, then retry.',
+                       'VCSA /storage/seat full increase VMDK'))
+        if vf:
+            crit = [f for f in vf if f[3] >= 95]
+            use = crit or vf
+            full = bool(crit)
+            score = round(SEV_BASE['high' if full else 'medium'] + (20 if full else 10) + (10 if corroborated else 0) + rel, 1)
+            mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in use}))
+            out.append(self._snap_dict(
+                'snap.fs_full' if full else 'snap.fs_high',
+                ('Filesystem at/over 95%% in df output: %s' if full else 'Filesystem at/over 75%% in df output (early warning): %s') % mounts,
+                'high' if full else 'medium', score, rel, corroborated, use,
+                'Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. '
+                + ('A full / or /var/log on an XCP-ng host (or on the XO appliance) stops xapi, yum and logging; free space (du -xh /var/log | sort -h | tail), then restart the toolstack or reboot the host if xapi does not recover.' if full else
+                   'Not full yet, but dom0 filesystems this busy leave little room for logs, updates and snapshots; find what is growing (du -xh /var/log | sort -h | tail) before it reaches 95%.'),
+                'XCP-ng /var/log full dom0 disk usage control domain'))
+        return out
 
-    # ---- scoring
+    def _snap_dict(self, fid, title, severity, score, rel, corroborated, use, advice, search):
+        return dict(
+            id=fid, title=title, source='command output', kind='snapshot',
+            severity=severity, score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
+            count=len(use), strong=len(use), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
+            nearest_to_anchor_s=None, topics=['disk-space'], advice=advice, kb=None, search=search,
+            files=[dict(file=r, count=1) for r in sorted({f[0] for f in use})][:5], variants=[],
+            samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in use[:3]],
+            spark=[0] * self.nb, _first=0)
+
     def _relevance(self, topics, text):
         rel = 0.0
         if self.topics and topics and (self.topics & set(topics)):
@@ -484,30 +568,30 @@ class Analyzer:
             _first=f.first or 0)
 
 
-    @staticmethod
-    def _attach_kb(d):
+    def _attach_kb(self, d):
         if d['kind'] == 'rule':
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']] + [v['message'] for v in d['variants']])
             r = kb.research(d['id'], text, d.get('search'))
         elif d['kind'] == 'snapshot':
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']])
-            r = kb.research('vc.disk_full', text, d.get('search'))
+            r = kb.research('xcp.host_disk_full' if any(self._is_vates_file(f['file']) for f in d['files']) else 'vc.disk_full', text, d.get('search'))
         else:
-            r = kb.research(None, '', d['title'][:100], kind='generic')
+            r = kb.research(None, '', d['title'][:100], kind='generic', vendor=packs.vendor(None, self.products))
         d['kb_research'] = r
 
     @staticmethod
     def _link_symptoms(items):
         """A downstream symptom (503, service down) that starts shortly AFTER a stronger cause ranks just below it."""
         by_id = {r['id']: r for r in R}
-        for d in items:                       # early warning that explains a later failure ranks above it
-            rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
-            if rf and d['_first']:
-                later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] > d['_first']]
-                if later:
-                    t = max(later, key=lambda t: t['score'])
-                    d['score'] = round(max(d['score'], t['score'] + 1.5), 1)
-                    d['root_of'] = t['title']
+        for _pass in range(3):                # chains (SR full -> coalesce stuck -> VM fails) settle in a few passes
+            for d in items:                   # early warning that explains a later failure ranks above it
+                rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
+                if rf and d['_first']:
+                    later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] >= d['_first']]
+                    if later:
+                        t = max(later, key=lambda t: t['score'])
+                        d['score'] = round(max(d['score'], t['score'] + 1.5), 1)
+                        d['root_of'] = t['title']
         causes = [d for d in items if d['kind'] == 'rule' and not by_id.get(d['id'], {}).get('symptom')
                   and d['severity'] in ('critical', 'high') and d['score'] >= 40 and not d['chronic'] and d['_first']]
         for s in items:
@@ -547,7 +631,7 @@ class Analyzer:
                 else:
                     topics = set(rf['topics'])
                     # map toolbox plugin spaces onto topics
-                    sp = {'storage': 'storage', 'host': 'hardware', 'ha': 'ha', 'vsan': 'vsan', 'vm': 'vm'}
+                    sp = {'storage': 'storage', 'host': 'hardware', 'ha': 'ha', 'vsan': 'vsan', 'vm': 'vm', 'services': 'services', 'security': 'auth'}
                     mapped = {sp.get(t, t) for t in topics}
                     rel = 25 if (mapped & self.topics) else 0
                     rf['score'] = round(SEV_BASE[rf['severity']] + 12 + rel, 1)
@@ -557,7 +641,12 @@ class Analyzer:
         for d in items + advisories:
             self._attach_kb(d)
         for rf in rep_items:
-            rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
+            if rf.get('rule'):                        # Vates Toolbox / VTLog items carry the rule they relate to: attach the Vates KB research
+                rf['kb_research'] = kb.research(rf['rule'], rf['title'] + ' ' + (rf.get('detail') or ''), None)
+            elif rf['source'] in (vtoolbox.BRAND, vtlog.BRAND):
+                rf['kb_research'] = kb.research(None, '', None, kind='generic', vendor='vates')
+            else:
+                rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
         for d in items:
             d.pop('_first', None)
         # timeline
@@ -580,7 +669,7 @@ class Analyzer:
                         after_h=round(self.after_s / 3600, 2)),
             stats=st, findings=items, advisories=advisories, report_findings=sorted(rep_items, key=lambda d: -d['score']),
             reports=report_out, timeline=dict(bucket_s=int(self.bsize), buckets=tl),
-            sequence=sequence, skipped=self.skipped[:50], kb_library=kb.library_info())
+            sequence=sequence, skipped=self.skipped[:50], kb_library=kb.library_info(packs.vendor(None, self.products)))
 
 
 def analyze(bundle, **kw):

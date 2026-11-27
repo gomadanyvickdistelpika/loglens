@@ -132,7 +132,8 @@ rule('vc.ls_client', 'vCenter: Lookup Service client adapter exception', 'vcente
 rule('vc.disk_full', 'vCenter: appliance partition full (/storage/*)', 'vcenter', 'high', ['disk-space', 'database', 'services', 'upgrade'],
      'space', r'No space left on device|DiskFull|ENOSPC|disk (?:is )?full|file system.{0,30}full|/storage/\w+.{0,40}(?:\b100%|\bfull\b)',
      'A VCSA partition is full. Run df -h and find which /storage/* volume (seat = stats/events/tasks, db, log, core, archive) is at 100%; grow the VMDK/partition (KB: "Increase disk space on VCSA") or purge. Full /storage/seat or /storage/db stops vpostgres and vpxd, and also aborts upgrade imports.',
-     search='VCSA /storage/seat full no space left on device increase VMDK')
+     search='VCSA /storage/seat full no space left on device increase VMDK',
+     root_for=('vc.db', 'vc.service_down', 'vc.vpxd_crash'))
 rule('vc.upg_fail', 'vCenter upgrade: stage / firstboot failure', 'vcenter', 'high', ['upgrade', 'services'],
      'stage|firstboot|first boot|upgrade|import', r'Stage \d+ (?:failed|error)|(?:firstboot|first boot|vpxd_firstboot).{0,80}(?:exited with code [1-9]|failed|error)|upgrade (?:failed|aborted)|Failed to import (?:configuration )?data|Import (?:of )?\w+ data failed',
      'Marks WHERE the upgrade died (stage/step). The cause is usually the earliest ERROR just before it (database/disk, certificate, Lookup Service, DNS, service start). Read the firstboot stderr/stdout logs and /var/log/vmware/upgrade/ around this time.',
@@ -184,6 +185,16 @@ rule('vc.lcm_download', 'vCenter Lifecycle Manager: patch/VIB download or depot 
      'download|verification service', r'Cannot download VIB|downloadMgr .{0,60}throws error: HTTP Error Code: 40[13]|File download error: .{0,200}failed, 0 byte|unable to authenticate with the VMware verification service',
      'Lifecycle Manager cannot download metadata/VIBs (HTTP 403, expired token, legacy depot) or cannot authenticate to the verification service. Reconfigure the depot with a valid Broadcom token or tenant-specific depot; after a Lifecycle Manager DB reset re-create the SDDC online depot entry with its ownerdata.',
      search='Lifecycle Manager Cannot download VIB HTTP 403 depot token ownerdata verification service')
+rule('vc.lcm_remediation', 'Lifecycle Manager: ESXi remediation / image compliance failure (VIB dependency or incompatible configuration)', 'vcenter', 'high', ['upgrade', 'services'],
+     'remediat|dependenc|incompatible',
+     r'remediat\w*.{0,100}(?:fail|error)|software or system configuration (?:is )?incompatible|(?:VIB|component).{0,80}(?:missing dependenc|depends on|conflicts? with|incompatible)|missing dependencies',
+     'Remediation of the host against the image failed. Typical cause: a vendor/custom VIB or driver in the image has a missing dependency or conflicts with the target release. Compare the host VIB list (esxcli software vib list) with the image, add the vendor add-on / remove the stale VIB from the image, and re-run the compliance check before remediating again.',
+     search='ESXi remediation fails software or system configuration incompatible VIB dependency vLCM')
+rule('vc.upg_patching_backup', 'VCSA update/patch staging failure (patching_backup_config.json / checksum mismatch)', 'vcenter', 'high', ['upgrade'],
+     'patching_backup|checksum',
+     r'patching_backup_config\.json|\[Errno 2\].{0,100}patching|checksum mismatch.{0,80}(?:patch|staging|update|rpm)',
+     'The vCenter appliance update staging is incomplete or corrupt (a staged file is missing or its checksum no longer matches). Remove the stale staged update, re-stage the ISO/patch from a verified download (compare the published checksum) and retry; take a backup / snapshot first.',
+     search='vCenter Server Appliance update fails patching_backup_config.json checksum mismatch')
 rule('vc.ha_agent_install', 'vSphere HA agent installation / configuration failure', 'both', 'high', ['ha', 'services'],
      'cannot install|installer error|components required|applying ha', r'Cannot [Ii]nstall the vCenter Server [Aa]gent|Unknown Installer Error|missing .{0,40} components required|Applying HA VIBs?.{0,40}fail',
      'The HA (FDM) agent cannot be installed or removed on a host, typically because a dependent VIB/component is missing or versions differ. Compare installed components with a healthy host, restore the missing component, then disable/enable HA or manually replace the agent.',
@@ -314,6 +325,8 @@ _KW = {
  'esx.heap_admission': 'admission failure in path|dynamic heap|heap_align',
  'esx.unmap': 'unmap|0x42',
  'vc.lcm_download': 'download|verification service',
+ 'vc.lcm_remediation': 'remediat|dependenc|incompatible',
+ 'vc.upg_patching_backup': 'patching_backup|checksum',
  'vc.ha_agent_install': 'cannot install|installer error|components required|applying ha',
  'esx.lockdown': 'lockdown|configure vim account|no permission',
  'vc.vpxd_cfg': 'vpxd.cfg|config file|configuration file',
@@ -335,6 +348,11 @@ _KW = {
  'vc.ha_unreachable': 'agent unreachable|agent uninitialized|not reachable from vcenter|management network addresses',
  'vc.cert_expired_svc': 'expired',
 }
+from . import packs as _packs                       # noqa: E402
+if _packs.enabled('vates'):
+    from . import rules_vates                       # noqa: E402,F401  (registers the xcp.* rules via rule())
+R[:] = [_r for _r in R if _packs.enabled(_packs.rule_pack(_r['id']))]
 for _r in R:
-    _r['kws'] = tuple(_KW[_r['id']].split('|'))
+    _r['kws'] = tuple(_KW.get(_r['id'], _r['kw']).split('|'))
     _r['any_level'] = _r['id'] in ('vc.acl_legacy',)
+BY_ID = {_r['id']: _r for _r in R}

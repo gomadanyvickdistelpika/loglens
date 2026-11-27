@@ -3,3 +3,7 @@ __pycache__/
 dist/
 build/
 *.spec
+
+# test output
+vcsa-upgrade-failed/
+vcsa-upgrade-failed.tgz
